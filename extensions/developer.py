@@ -40,28 +40,6 @@ class Developer(commands.Cog):
     async def cog_unload(self):
         await self.conn.close()
 
-    @commands.Cog.listener()
-    async def on_github_push(self, payload):
-        if payload["ref"] != "refs/heads/main":
-            return
-
-        commit_info = await fetch_latest_commit_info()
-        if isinstance(commit_info, str):
-            return
-
-        embed = discord.Embed(
-            description=f"Commit message: {commit_info['message']}",
-            color=config["COLORS"]["DEFAULT"],
-        )
-        embed.add_field(
-            name="Commit",
-            value=f"[{commit_info['id'][:7]}]({commit_info['url']})",
-        )
-        embed.add_field(name="Author", value=commit_info["author"])
-        embed.add_field(
-            name="Date", value=iso_to_discord_timestamp(commit_info["date"])
-        )
-
     _dev = discord.commands.SlashCommandGroup(
         name="developer", description="Developer related commands."
     )
