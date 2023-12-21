@@ -6,6 +6,7 @@ import os
 
 from discord.ext import commands
 from openai import OpenAI
+from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
 
 
 def load_config():
@@ -30,7 +31,7 @@ class Developer(commands.Cog):
         await self._create_tables()
 
     async def _create_tables(self):
-        async with self.conn.cursor() as cur:  # Using async context manager with cursor
+        async with self.conn.cursor() as cur:
             await cur.execute(
                 "CREATE TABLE IF NOT EXISTS disabled_commands (command TEXT)"
             )
@@ -38,6 +39,28 @@ class Developer(commands.Cog):
 
     async def cog_unload(self):
         await self.conn.close()
+
+    @commands.Cog.listener()
+    async def on_github_push(self, payload):
+        if payload["ref"] != "refs/heads/main":
+            return
+
+        commit_info = await fetch_latest_commit_info()
+        if isinstance(commit_info, str):
+            return
+
+        embed = discord.Embed(
+            description=f"Commit message: {commit_info['message']}",
+            color=config["COLORS"]["DEFAULT"],
+        )
+        embed.add_field(
+            name="Commit",
+            value=f"[{commit_info['id'][:7]}]({commit_info['url']})",
+        )
+        embed.add_field(name="Author", value=commit_info["author"])
+        embed.add_field(
+            name="Date", value=iso_to_discord_timestamp(commit_info["date"])
+        )
 
     _dev = discord.commands.SlashCommandGroup(
         name="developer", description="Developer related commands."
@@ -324,20 +347,33 @@ class Developer(commands.Cog):
             )
         )
 
-    # @_dev.command(
-    #     name="version",
-    #     description="Gets the current version of the bot.",
-    # )
-    # async def _version(self, ctx: discord.ApplicationContext):
-    #     if ctx.author.id != config["OWNER_ID"]:
-    #         raise commands.CommandInvokeError(
-    #             "You are not allowed to use this command."
-    #         )
+    @_dev.command(
+        name="version",
+        description="Gets the current version of the bot.",
+    )
+    async def _version(self, ctx: discord.ApplicationContext):
+        commit_info = await fetch_latest_commit_info()
+        if isinstance(commit_info, str):  # If it's an error message
+            await ctx.respond(commit_info)
+        else:
+            embed = discord.Embed(
+                description=f"Commit message: {commit_info['message']}",
+                color=config["COLORS"]["DEFAULT"],
+            )
+            embed.add_field(
+                name="Commit",
+                value=f"[{commit_info['id'][:7]}]({commit_info['url']})",
+            )
+            embed.add_field(name="Author", value=commit_info["author"])
+            embed.add_field(
+                name="Date", value=iso_to_discord_timestamp(commit_info["date"])
+            )
+            await ctx.respond(embed=embed)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
         try:
-            async with self.conn.cursor() as cur:  # Use async with for cursor
+            async with self.conn.cursor() as cur:
                 await cur.execute(
                     "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?",
                     (str(guild.id),),
