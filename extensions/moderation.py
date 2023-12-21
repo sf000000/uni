@@ -343,7 +343,9 @@ class Moderation(commands.Cog):
     ):
         try:
             duration = int(duration)
-            until = datetime.datetime.utcnow() + datetime.timedelta(hours=duration)
+            until = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+                hours=duration
+            )
             await member.timeout(until=until, reason=reason)
             embed = discord.Embed(
                 title="Member Timed Out",
@@ -1072,14 +1074,13 @@ class Moderation(commands.Cog):
         ),
     ):
         def is_image(msg):
-            if msg.attachments:
-                if any(
-                    att.filename.lower().endswith(
-                        (".png", ".jpg", ".jpeg", ".gif", ".webp")
-                    )
-                    for att in msg.attachments
-                ):
-                    return True
+            if msg.attachments and any(
+                att.filename.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
+                )
+                for att in msg.attachments
+            ):
+                return True
 
             if msg.content:
                 url_regex = r"https?://[^\s]+"
@@ -1264,10 +1265,11 @@ class Moderation(commands.Cog):
             utc = pytz.utc
             now = datetime.now(utc)
             one_day_ago = now - datetime.timedelta(days=1)
-            new_users = []
-            for member in ctx.guild.members:
-                if member.joined_at and member.joined_at > one_day_ago:
-                    new_users.append(member)
+            new_users = [
+                member
+                for member in ctx.guild.members
+                if member.joined_at and member.joined_at > one_day_ago
+            ]
             if not new_users:
                 return await ctx.respond("No new users found.")
             for member in new_users:
