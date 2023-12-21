@@ -194,7 +194,7 @@ class Misc(commands.Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"https://api.themoviedb.org/3/search/movie",
+                "https://api.themoviedb.org/3/search/movie",
                 params={
                     "query": movie,
                     "language": "en-US",
