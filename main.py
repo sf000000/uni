@@ -28,6 +28,7 @@ class Bot(commands.AutoShardedBot):
         self.inital_extensions = [
             "extensions.information",
             "extensions.server",
+            "extensions.trivia",
             "extensions.moderation",
             "extensions.lastfm",
             "extensions.misc",
