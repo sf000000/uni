@@ -5,10 +5,12 @@ import io
 import datetime
 import pytz
 import aiosqlite
+import platform
 
 from kick_py import Kick
 from discord.ext import commands, tasks
 from colorthief import ColorThief
+from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
 
 
 def load_config():
@@ -26,6 +28,7 @@ class Information(commands.Cog):
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
         self.check_reminders.start()
+        self.bot_started = datetime.datetime.now()
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -748,6 +751,44 @@ class Information(commands.Cog):
 
         if livestream_info:
             view.add_item(watch_button)
+        await ctx.respond(embed=embed, view=view)
+
+    @discord.slash_command(
+        name="about", description="Get some useful (or not) information about the bot."
+    )
+    async def about(self, ctx: discord.ApplicationContext):
+        commit_info = await fetch_latest_commit_info()
+        uptime = datetime.datetime.now() - self.bot_started
+        bot_avatar_url = self.bot.user.avatar.url if self.bot.user.avatar else None
+
+        async with self.conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM command_usage")
+            total_commands_used = (await cur.fetchone())[0]
+
+        embed = (
+            discord.Embed(
+                description="Uni is a multipurpose Discord bot.",
+                color=config["COLORS"]["INVISIBLE"],
+            )
+            .add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms")
+            .add_field(
+                name="Version",
+                value=f"[{commit_info['id'][:7]}]({commit_info['url']}) - {iso_to_discord_timestamp(commit_info['date'])}",
+            )
+            .add_field(name="Uptime", value=str(uptime).split(".")[0])
+            .add_field(name="Commands Used", value=total_commands_used)
+            .add_field(name="Python", value=f"{platform.python_version()}")
+            .add_field(name="Pycord", value=f"{discord.__version__}")
+            .set_thumbnail(url=bot_avatar_url)
+        )
+
+        source_code_button = discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            label="Source Code",
+            url="https://github.com/notjawad/uni",
+        )
+        view = discord.ui.View(timeout=60).add_item(source_code_button)
+
         await ctx.respond(embed=embed, view=view)
 
     @tasks.loop(minutes=1)
