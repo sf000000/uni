@@ -136,7 +136,7 @@ class Server(commands.Cog):
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 result = await asyncio.get_event_loop().run_in_executor(
-                    executor, run_selenium
+                    executor, await run_selenium
                 )
 
             rules_channel_button = discord.ui.Button(
@@ -206,7 +206,9 @@ class Server(commands.Cog):
     @_welcome.command(name="channel", description="Set the welcome channel")
     @commands.has_permissions(manage_guild=True)
     async def _welcome_channel(
-        self, ctx: discord.ApplicationContext, channel: discord.TextChannel
+        self,
+        ctx: discord.ApplicationContext,
+        channel: discord.Option(description="The channel to send welcome messages in"),
     ):
         async with self.conn.cursor() as cur:
             await cur.execute(
@@ -218,7 +220,11 @@ class Server(commands.Cog):
 
     @discord.slash_command(name="seticon", description="Set a new guild icon")
     @commands.has_permissions(manage_guild=True)
-    async def _set_icon(self, ctx: discord.ApplicationContext, icon_url: str):
+    async def _set_icon(
+        self,
+        ctx: discord.ApplicationContext,
+        icon_url: discord.Option(str, description="The URL of the icon to set"),
+    ):
         async with aiohttp.ClientSession() as session:
             async with session.get(icon_url) as resp:
                 if resp.status != 200:
@@ -231,7 +237,11 @@ class Server(commands.Cog):
         name="setsplash", description="Set a new guild splash background"
     )
     @commands.has_permissions(manage_guild=True)
-    async def _set_splash(self, ctx: discord.ApplicationContext, splash_url: str):
+    async def _set_splash(
+        self,
+        ctx: discord.ApplicationContext,
+        splash_url: discord.Option(str, description="The URL of the splash to set"),
+    ):
         async with aiohttp.ClientSession() as session:
             async with session.get(splash_url) as resp:
                 if resp.status != 200:
@@ -242,7 +252,11 @@ class Server(commands.Cog):
 
     @discord.slash_command(name="setbanner", description="Set a new guild banner")
     @commands.has_permissions(manage_guild=True)
-    async def _set_banner(self, ctx: discord.ApplicationContext, banner_url: str):
+    async def _set_banner(
+        self,
+        ctx: discord.ApplicationContext,
+        banner_url: discord.Option(str, description="The URL of the banner to set"),
+    ):
         async with aiohttp.ClientSession() as session:
             async with session.get(banner_url) as resp:
                 if resp.status != 200:
@@ -311,7 +325,13 @@ class Server(commands.Cog):
         name="snapchat",
         description="Get bitmoji and QR scan code for user",
     )
-    async def _snapchat(self, ctx: discord.ApplicationContext, username: str):
+    async def _snapchat(
+        self,
+        ctx: discord.ApplicationContext,
+        username: discord.Option(
+            str, description="The Snapchat username to get the code for"
+        ),
+    ):
         await ctx.defer()
 
         me = SnapChat(username)
@@ -343,7 +363,13 @@ class Server(commands.Cog):
         name="xbox",
         description="Get Xbox profile for user",
     )
-    async def _xbox(self, ctx: discord.ApplicationContext, gamertag: str):
+    async def _xbox(
+        self,
+        ctx: discord.ApplicationContext,
+        gamertag: discord.Option(
+            str, description="The Xbox gamertag to get the profile for"
+        ),
+    ):
         await ctx.defer()
 
         async with aiohttp.ClientSession() as session:
