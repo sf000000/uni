@@ -142,6 +142,55 @@ class Twitch(commands.Cog):
         )
         await ctx.respond(embed=embed)
 
+    @_twitch.command(
+        name="remove",
+        description="Removes a Twitch channel from the notification list.",
+    )
+    @commands.has_permissions(administrator=True)
+    async def _remove(
+        self,
+        ctx: discord.ApplicationContext,
+        channel_name: discord.Option(
+            name="channel",
+            description="The channel to remove from the notification list.",
+            required=True,
+        ),
+    ):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "DELETE FROM twitch_streamers WHERE channel_name = ? AND guild_id = ?",
+                (channel_name, ctx.guild.id),
+            )
+            await self.conn.commit()
+
+        embed = discord.Embed(
+            description=f"Removed `{channel_name}` from the notification list.",
+            color=config["COLORS"]["SUCCESS"],
+        )
+        await ctx.respond(embed=embed)
+
+    @_twitch.command(
+        name="list",
+        description="Lists all Twitch channels in the notification list.",
+    )
+    @commands.has_permissions(administrator=True)
+    async def _list(
+        self,
+        ctx: discord.ApplicationContext,
+    ):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT channel_name FROM twitch_streamers WHERE guild_id = ?",
+                (ctx.guild.id,),
+            )
+            streamers = await cur.fetchall()
+
+        embed = discord.Embed(
+            description="\n".join([f"• {streamer[0]}" for streamer in streamers]),
+            color=config["COLORS"]["BLURPLE"],
+        )
+        await ctx.respond(embed=embed)
+
     @tasks.loop(minutes=2)
     async def check_streams(self):
         async with self.conn.cursor() as cur:
