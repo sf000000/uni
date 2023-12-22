@@ -247,7 +247,7 @@ class Economy(commands.Cog):
 
     @_gamble.command(
         name="slots",
-        description="Play the slots.",
+        description="Try your hand at the slots and get rich.",
     )
     async def slots(
         self,
