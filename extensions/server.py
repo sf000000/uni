@@ -1,8 +1,6 @@
 import discord
 import aiosqlite
 import yaml
-import asyncio
-import concurrent.futures
 import time
 import aiohttp
 import zipfile
@@ -57,6 +55,12 @@ class Server(commands.Cog):
                 raise commands.CommandInvokeError(
                     f"Command `{command_name}` is disabled."
                 )
+
+    async def channel_autocomplete(self, ctx: discord.ApplicationContext, string: str):
+        channels = ctx.guild.channels
+        return [
+            channel for channel in channels if string.lower() in channel.name.lower()
+        ]
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
@@ -134,10 +138,7 @@ class Server(commands.Cog):
                 finally:
                     driver.quit()
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    executor, await run_selenium
-                )
+            result = await run_selenium()
 
             rules_channel_button = discord.ui.Button(
                 label="Rules",
@@ -208,7 +209,9 @@ class Server(commands.Cog):
     async def _welcome_channel(
         self,
         ctx: discord.ApplicationContext,
-        channel: discord.Option(description="The channel to send welcome messages in"),
+        channel: discord.Option(
+            discord.TextChannel, "Select a channel", autocomplete=channel_autocomplete
+        ),
     ):
         async with self.conn.cursor() as cur:
             await cur.execute(
@@ -217,6 +220,49 @@ class Server(commands.Cog):
             )
             await self.conn.commit()
         await ctx.respond(f"Welcome channel set to {channel.mention}.", ephemeral=True)
+
+    _leave = discord.commands.SlashCommandGroup(
+        name="leave", description="Leave messages"
+    )
+
+    @_leave.command(name="enable", description="Enable leave messages")
+    @commands.has_permissions(manage_guild=True)
+    async def _leave_enable(self, ctx: discord.ApplicationContext):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE guilds SET leave_enabled = 1 WHERE guild_id = ?",
+                (ctx.guild.id,),
+            )
+            await self.conn.commit()
+        await ctx.respond("Leave messages enabled.", ephemeral=True)
+
+    @_leave.command(name="disable", description="Disable leave messages")
+    @commands.has_permissions(manage_guild=True)
+    async def _leave_disable(self, ctx: discord.ApplicationContext):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE guilds SET leave_enabled = 0 WHERE guild_id = ?",
+                (ctx.guild.id,),
+            )
+            await self.conn.commit()
+        await ctx.respond("Leave messages disabled.", ephemeral=True)
+
+    @_leave.command(name="channel", description="Set the leave channel")
+    @commands.has_permissions(manage_guild=True)
+    async def _leave_channel(
+        self,
+        ctx: discord.ApplicationContext,
+        channel: discord.Option(
+            discord.TextChannel, "Select a channel", autocomplete=channel_autocomplete
+        ),
+    ):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE guilds SET leave_channel = ? WHERE guild_id = ?",
+                (channel.id, ctx.guild.id),
+            )
+            await self.conn.commit()
+        await ctx.respond(f"Leave channel set to {channel.mention}.", ephemeral=True)
 
     @discord.slash_command(name="seticon", description="Set a new guild icon")
     @commands.has_permissions(manage_guild=True)
@@ -415,6 +461,30 @@ class Server(commands.Cog):
 
                 embed.set_thumbnail(url=person["displayPicRaw"])
                 await ctx.respond(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT leave_enabled, leave_channel FROM guilds WHERE guild_id = ?",
+                (member.guild.id,),
+            )
+            row = await cur.fetchone()
+            if row is None or not row[0]:
+                return
+
+            leave_enabled, leave_channel_id = row
+            leave_channel = self.bot.get_channel(leave_channel_id)
+            if not leave_channel:
+                return
+
+            embed = discord.Embed(
+                title="Member Left",
+                description=f"{member.mention} has left the server.",
+                color=config["COLORS"]["ERROR"],
+            )
+            embed.set_thumbnail(url=member.avatar.url)
+            await leave_channel.send(embed=embed)
 
 
 def setup(bot_: discord.Bot):
