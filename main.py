@@ -1,6 +1,7 @@
 import discord
 import traceback
 import yaml
+import os
 
 from discord.ext import commands
 from colorama import Fore, Style
@@ -25,29 +26,17 @@ class Bot(commands.AutoShardedBot):
             status=config["STATUS_TYPE"],
         )
 
-        self.inital_extensions = [
-            "extensions.information",
-            "extensions.server",
-            "extensions.trivia",
-            "extensions.moderation",
-            "extensions.fun",
-            "extensions.economy",
-            "extensions.lastfm",
-            "extensions.tags",
-            "extensions.twitch",
-            "extensions.misc",
-            "extensions.help",
-            "extensions.developer",
-            "extensions.error_handler",
-        ]
-        for extension in self.inital_extensions:
-            try:
-                self.load_extension(extension)
-            except Exception as e:
-                print(
-                    f"Failed to load extension {Fore.RED}{extension}{Style.RESET_ALL}: {Fore.RED}{e}{Style.RESET_ALL}"
-                )
-                traceback.print_exc()
+        extensions_dir = "extensions"
+        for filename in os.listdir(extensions_dir):
+            if filename.endswith(".py"):
+                extension = f"{extensions_dir}.{filename[:-3]}"
+                try:
+                    self.load_extension(extension)
+                except Exception as e:
+                    print(
+                        f"Failed to load extension {Fore.RED}{extension}{Style.RESET_ALL}: {Fore.RED}{e}{Style.RESET_ALL}"
+                    )
+                    traceback.print_exc()
 
         self.remove_command("help")
 
