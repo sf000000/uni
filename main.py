@@ -33,6 +33,7 @@ class Bot(commands.AutoShardedBot):
             "extensions.fun",
             "extensions.lastfm",
             "extensions.tags",
+            "extensions.twitch",
             "extensions.misc",
             "extensions.help",
             "extensions.developer",
