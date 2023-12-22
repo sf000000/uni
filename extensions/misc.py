@@ -3,6 +3,7 @@ import aiosqlite
 import yaml
 import uwuify
 import aiohttp
+import os
 
 from discord.ext import commands
 
@@ -73,7 +74,7 @@ class Misc(commands.Cog):
                         await message.channel.send(embed=embed, delete_after=5)
         await self.conn.commit()
 
-    @discord.commands.slash_command(
+    @discord.slash_command(
         name="uwu",
         description="Uwuify text",
     )
@@ -84,7 +85,7 @@ class Misc(commands.Cog):
     ):
         await ctx.respond(uwuify.uwu(text, flags=uwuify.SMILEY))
 
-    @discord.commands.slash_command(
+    @discord.slash_command(
         name="quickpoll",
         description="Add up/down arrow to message initiating a poll",
     )
@@ -116,7 +117,7 @@ class Misc(commands.Cog):
 
         await ctx.respond("Done.", ephemeral=True, delete_after=5)
 
-    @discord.commands.slash_command(
+    @discord.slash_command(
         name="afk",
         description="Set an AFK status for when you are mentioned",
     )
@@ -169,7 +170,7 @@ class Misc(commands.Cog):
             ],
         ]
 
-    @discord.commands.slash_command(
+    @discord.slash_command(
         name="movie",
         description="Get a link to watch a movie 🏴‍☠🦜",
     )
@@ -266,6 +267,55 @@ class Misc(commands.Cog):
         view = discord.ui.View()
         view.add_item(watch_button)
         await ctx.respond(embed=embed, view=view)
+
+    @discord.slash_command(
+        name="tts",
+        description="Sends a .mp3 file of text speech",
+    )
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def _tts(
+        self,
+        ctx: discord.ApplicationContext,
+        text=discord.Option(str, "Text to speak", required=True),
+        voice=discord.Option(
+            str,
+            "Voice to speak with",
+            required=False,
+            choices=[
+                discord.OptionChoice(name="Brian", value="Brian"),
+                discord.OptionChoice(name="Emma", value="Emma"),
+                discord.OptionChoice(name="Ivy", value="Ivy"),
+                discord.OptionChoice(name="Joey", value="Joey"),
+                discord.OptionChoice(name="Justin", value="Justin"),
+                discord.OptionChoice(name="Kendra", value="Kendra"),
+                discord.OptionChoice(name="Kimberly", value="Kimberly"),
+                discord.OptionChoice(name="Matthew", value="Matthew"),
+                discord.OptionChoice(name="Salli", value="Salli"),
+            ],
+        ),
+    ):
+        await ctx.defer()
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://ttsmp3.com/makemp3_new.php",
+                data={
+                    "msg": text,
+                    "lang": voice,
+                    "source": "ttsmp3",
+                    "quality": "hi",
+                    "speed": "0",
+                    "action": "process",
+                },
+            ) as response:
+                data = await response.json()
+
+            async with session.get(data["URL"]) as response:
+                with open("tts.mp3", "wb") as file:
+                    file.write(await response.read())
+
+            await ctx.respond(file=discord.File("tts.mp3"))
+            os.remove("tts.mp3")
 
 
 def setup(bot_: discord.Bot):
