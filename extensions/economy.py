@@ -291,6 +291,66 @@ class Economy(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
+    @_gamble.command(
+        name="dice",
+        description="Bet on a dice roll.",
+    )
+    async def dice(
+        self,
+        ctx: discord.ApplicationContext,
+        amount: discord.Option(
+            int, description="The amount of money to gamble.", required=True
+        ),
+        bet: discord.Option(int, description="The number to bet on.", required=True),
+    ):
+        if amount <= 0:
+            return await ctx.respond(
+                "You can't gamble a negative or zero amount.", ephemeral=True
+            )
+
+        if bet < 1 or bet > 6:
+            return await ctx.respond(
+                "You can only bet on numbers between 1 and 6.", ephemeral=True
+            )
+
+        balance = await self.get_balance(ctx.user.id, ctx.guild.id)
+        if not balance or balance[0] < amount:
+            message = (
+                "You don't have a balance yet. Use `/bank collect` to get started."
+                if not balance
+                else "You don't have enough money to gamble that amount."
+            )
+            return await ctx.respond(message, ephemeral=True)
+
+        dice_sides = [1, 2, 3, 4, 5, 6]
+        if bet not in dice_sides:
+            return await ctx.respond(
+                "You can only bet on numbers between 1 and 6.", ephemeral=True
+            )
+
+        dice_roll = random.choice(dice_sides)
+        if dice_roll == bet:
+            reward = amount * 6
+            content = f"{ctx.author.mention} You've won **{reward}** {config['ECONOMY']['CURRENCY_NAME']}!"
+        else:
+            reward = -amount
+            content = f"{ctx.author.mention} Better luck next time! You've lost **{amount}** {config['ECONOMY']['CURRENCY_NAME']}!"
+
+        await self.update_balance(ctx.user.id, ctx.guild.id, reward, reward > 0)
+
+        embed = discord.Embed(
+            description=f"```\n| {dice_roll} |\n```",
+            color=config["COLORS"]["SUCCESS"]
+            if reward > 0
+            else config["COLORS"]["ERROR"],
+        )
+
+        await ctx.respond(
+            content=content,
+            embed=embed,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
 
 def setup(bot_: discord.Bot):
     bot_.add_cog(Economy(bot_))
