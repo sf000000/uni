@@ -182,13 +182,12 @@ class Developer(commands.Cog):
             )
 
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(query)
-                result = cur.fetchall()
-                formatted_result = "\n".join(str(row) for row in result)
-                await ctx.respond(f"```{formatted_result}```")
+            async with self.conn.cursor() as cur:
+                await cur.execute(query)
+                await self.conn.commit()
+                await ctx.respond("Query executed.")
         except Exception as e:
-            await ctx.respond(f"Error executing query: {e}")
+            return await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(name="whitelist", description="Whitelists a guild to use the bot.")
     async def whitelist(
