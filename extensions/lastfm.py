@@ -416,13 +416,14 @@ class LastFM(commands.Cog):
     @_spotify.command(
         name="search",
         description="Search for a song on Spotify.",
-        query=discord.Option(
-            str,
-            description="The song to search for.",
-            required=True,
-        ),
     )
-    async def spotify_search(self, ctx: discord.ApplicationContext, query: str):
+    async def spotify_search(
+        self,
+        ctx: discord.ApplicationContext,
+        query: discord.Option(
+            str, description="The song to search for.", required=True
+        ),
+    ):
         results = sp.search(q=query)
         tracks = results.get("tracks", {}).get("items")
 
