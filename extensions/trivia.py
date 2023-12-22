@@ -115,10 +115,10 @@ class Trivia(commands.Cog):
             choices_text = "\n".join(
                 f"{chr(65+i)}. {choice}" for i, choice in enumerate(choices)
             )
-            embed.add_field(name="Choices", value=choices_text, inline=False)
+            embed.add_field(name="Choices", value=choices_text)
 
         elif trivia_question["type"] == "boolean":
-            embed.add_field(name="Choices", value="True or False (t, f)", inline=False)
+            embed.add_field(name="Choices", value="True or False (t, f)")
 
         return embed
 
@@ -185,45 +185,57 @@ class Trivia(commands.Cog):
                 m.author.id in [ctx.author.id, opponent.id] and m.channel == ctx.channel
             )
 
-        try:
-            response = await self.bot.wait_for("message", check=check, timeout=30)
+        correct_answer = question["correct_answer"].lower()
+        while True:
+            try:
+                response = await self.bot.wait_for("message", check=check, timeout=30)
 
-            answer_mapping = {"a": 0, "b": 1, "c": 2, "d": 3}
+                answer_mapping = {"a": 0, "b": 1, "c": 2, "d": 3}
+                user_answer = response.content.lower().strip()
 
-            user_answer = response.content.lower().strip()
-            if question["type"] == "multiple":
-                correct_index = answer_mapping.get(user_answer)
-                if (
-                    correct_index is not None
-                    and question["incorrect_answers"][correct_index].lower()
-                    == question["correct_answer"].lower()
-                ):
-                    await ctx.send(
-                        f"Congratulations {response.author.mention}, you've won!"
-                    )
-                    await self.update_winner_score(
-                        str(response.author.id), str(question["category"])
-                    )
-                else:
-                    await ctx.send("That's incorrect!")
-            elif question["type"] == "boolean":
-                correct_answer = (
-                    "true" if question["correct_answer"].lower() == "true" else "false"
-                )
-                if (user_answer == "t" and correct_answer == "true") or (
-                    user_answer == "f" and correct_answer == "false"
-                ):
-                    await ctx.send(
-                        f"Congratulations {response.author.mention}, you've won!"
-                    )
-                    await self.update_winner_score(
-                        str(response.author.id), str(question["category"])
-                    )
-                else:
-                    await ctx.send("That's incorrect!")
+                if question["type"] == "multiple":
+                    choices = [question["correct_answer"].lower()] + [
+                        a.lower() for a in question["incorrect_answers"]
+                    ]
+                    if user_answer in [
+                        "a",
+                        "b",
+                        "c",
+                        "d",
+                    ]:
+                        if choices[answer_mapping[user_answer]] == correct_answer:
+                            await ctx.send(
+                                f"Congratulations {response.author.mention}, you've won!"
+                            )
+                            await self.update_winner_score(
+                                str(response.author.id), question["category"]
+                            )
+                            break
+                        else:
+                            await ctx.send("That's incorrect! Try again.")
+                    else:
+                        await ctx.send("Invalid option. Try again.")
 
-        except asyncio.TimeoutError:
-            await ctx.send("Time's up! No one answered in time.")
+                elif question["type"] == "boolean":
+                    if (user_answer == "t" and correct_answer == "true") or (
+                        user_answer == "f" and correct_answer == "false"
+                    ):
+                        await ctx.send(
+                            f"Congratulations {response.author.mention}, you've won!"
+                        )
+                        await self.update_winner_score(
+                            str(response.author.id), question["category"]
+                        )
+                        break
+                    else:
+                        await ctx.send("That's incorrect! Try again.")
+
+            except asyncio.TimeoutError:
+                await ctx.send("Time's up! No one answered in time.")
+                break
+
+        if response.content.lower() != correct_answer:
+            await ctx.send(f"The correct answer was {question['correct_answer']}.")
 
     @_trivia.command(
         name="stats",
@@ -232,30 +244,26 @@ class Trivia(commands.Cog):
     async def stats(
         self,
         ctx: discord.ApplicationContext,
-        category: discord.Option(
-            str, "Specify the category (optional)", required=False
-        ),
     ):
         user_id = str(ctx.author.id)
-
-        if category:
-            query = "SELECT category, wins FROM trivia_winners WHERE user_id = ? AND category = ?"
-            params = (user_id, category)
-        else:
-            query = "SELECT category, wins FROM trivia_winners WHERE user_id = ?"
-            params = (user_id,)
+        query = "SELECT category, SUM(wins) as total_wins FROM trivia_winners WHERE user_id = ? GROUP BY category"
+        params = (user_id,)
 
         async with self.conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
         if rows:
+            total_wins = sum(row[1] for row in rows)
+            top_category = max(rows, key=lambda row: row[1])
+
             embed = discord.Embed(
                 color=config["COLORS"]["SUCCESS"],
             )
-            for category, wins in rows:
-                embed.add_field(
-                    name=f"Category: {category}", value=f"Wins: {wins}", inline=False
-                )
+            embed.add_field(name="Total Wins", value=str(total_wins))
+            embed.add_field(
+                name="Top Category",
+                value=f"{top_category[0]} ({top_category[1]})",
+            )
             await ctx.respond(embed=embed)
         else:
             await ctx.respond("No trivia wins found for you!", ephemeral=True)
