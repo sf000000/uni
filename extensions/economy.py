@@ -264,9 +264,9 @@ class Economy(commands.Cog):
         balance = await self.get_balance(ctx.user.id, ctx.guild.id)
         if not balance or balance[0] < amount:
             message = (
-                "You don't have a balance yet. Use `/bank collect` to get started."
-                if not balance
-                else "You don't have enough money to gamble that amount."
+                "You don't have enough money to gamble that amount."
+                if balance
+                else "You don't have a balance yet. Use `/bank collect` to get started."
             )
             return await ctx.respond(message, ephemeral=True)
 
@@ -316,9 +316,9 @@ class Economy(commands.Cog):
         balance = await self.get_balance(ctx.user.id, ctx.guild.id)
         if not balance or balance[0] < amount:
             message = (
-                "You don't have a balance yet. Use `/bank collect` to get started."
-                if not balance
-                else "You don't have enough money to gamble that amount."
+                "You don't have enough money to gamble that amount."
+                if balance
+                else "You don't have a balance yet. Use `/bank collect` to get started."
             )
             return await ctx.respond(message, ephemeral=True)
 
@@ -350,6 +350,35 @@ class Economy(commands.Cog):
             embed=embed,
             allowed_mentions=discord.AllowedMentions.none(),
         )
+
+    @discord.slash_command(
+        name="leaderboard",
+        description="View the leaderboard.",
+    )
+    async def leaderboard(self, ctx: discord.ApplicationContext):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT user_id, balance FROM economy WHERE guild_id = ? ORDER BY balance DESC LIMIT 10",
+                (ctx.guild.id,),
+            )
+            results = await cur.fetchall()
+
+        if not results:
+            return await ctx.respond("There are no results to display.", ephemeral=True)
+
+        leaderboard = []
+        for index, result in enumerate(results):
+            user = ctx.guild.get_member(result[0])
+            if user is None:
+                continue
+            leaderboard.append(f"{index}. {user.mention} - **{result[1]}**")
+
+        embed = discord.Embed(
+            title="Leaderboard",
+            description="\n".join(leaderboard),
+            color=config["COLORS"]["DEFAULT"],
+        )
+        await ctx.respond(embed=embed)
 
 
 def setup(bot_: discord.Bot):
