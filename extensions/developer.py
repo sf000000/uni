@@ -233,6 +233,51 @@ class Developer(commands.Cog):
             await ctx.respond(f"Error occurred: {e}")
 
     @_dev.command(
+        name="unwhitelist", description="Unwhitelists a guild from using the bot."
+    )
+    async def unwhitelist(
+        self,
+        ctx: discord.ApplicationContext,
+        guild_id: discord.Option(
+            str, "The ID of the guild to unwhitelist.", required=True
+        ),
+    ):
+        if ctx.author.id != config["OWNER_ID"]:
+            raise commands.CommandInvokeError(
+                "You are not allowed to use this command."
+            )
+
+        try:
+            async with self.conn.cursor() as cur:
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS whitelisted_guilds (guild_id TEXT)"
+                )
+                await cur.execute(
+                    "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?", (guild_id,)
+                )
+                if not await cur.fetchone():
+                    return await ctx.respond(
+                        embed=discord.Embed(
+                            description=f"The guild `{guild_id}` is not whitelisted.",
+                            color=config["COLORS"]["ERROR"],
+                        )
+                    )
+
+                await cur.execute(
+                    "DELETE FROM whitelisted_guilds WHERE guild_id = ?", (guild_id,)
+                )
+                await self.conn.commit()
+
+            return await ctx.respond(
+                embed=discord.Embed(
+                    description=f"The guild `{guild_id}` has been unwhitelisted.",
+                    color=config["COLORS"]["SUCCESS"],
+                )
+            )
+        except Exception as e:
+            await ctx.respond(f"Error occurred: {e}")
+
+    @_dev.command(
         name="status",
         description="Set bot's playing status.",
     )
@@ -324,7 +369,7 @@ class Developer(commands.Cog):
             )
         )
 
-    @_dev.command(
+    @discord.slash_command(
         name="version",
         description="Gets the current version of the bot.",
     )
@@ -346,6 +391,15 @@ class Developer(commands.Cog):
                 name="Date", value=iso_to_discord_timestamp(commit_info["date"])
             )
             await ctx.respond(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_application_command_completion(self, ctx: discord.ApplicationContext):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "INSERT INTO command_usage (command, user_id, guild_id) VALUES (?, ?, ?)",
+                (str(ctx.command), str(ctx.author.id), str(ctx.guild.id)),
+            )
+            await self.conn.commit()
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
