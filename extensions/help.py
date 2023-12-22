@@ -16,7 +16,7 @@ config = load_config()
 
 class HelpPaginator(discord.ui.View):
     def __init__(self, help_command, commands, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, timeout=60)
         self.help_command = help_command
         self.commands = commands
         self.current_page = 0
@@ -62,6 +62,10 @@ class HelpPaginator(discord.ui.View):
         self.children[2].callback = self.go_to_beginning
         self.children[3].callback = self.go_to_end
         self.children[4].callback = self.close_help_command
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
 
     async def go_to_beginning(self, interaction: discord.Interaction):
         self.current_page = 0
