@@ -26,13 +26,14 @@ class Bot(commands.AutoShardedBot):
         )
 
         self.inital_extensions = [
-            "extensions.developer",
-            "extensions.moderation",
-            "extensions.server",
-            "extensions.error_handler",
             "extensions.information",
+            "extensions.server",
+            "extensions.moderation",
             "extensions.lastfm",
             "extensions.misc",
+            "extensions.help",
+            "extensions.developer",
+            "extensions.error_handler",
         ]
         for extension in self.inital_extensions:
             try:
