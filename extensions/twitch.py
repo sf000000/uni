@@ -142,7 +142,7 @@ class Twitch(commands.Cog):
         )
         await ctx.respond(embed=embed)
 
-    @tasks.loop(seconds=10)
+    @tasks.loop(minutes=2)
     async def check_streams(self):
         async with self.conn.cursor() as cur:
             await cur.execute(
