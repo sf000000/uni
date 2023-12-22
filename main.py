@@ -30,6 +30,7 @@ class Bot(commands.AutoShardedBot):
             "extensions.server",
             "extensions.trivia",
             "extensions.moderation",
+            "extensions.fun",
             "extensions.lastfm",
             "extensions.misc",
             "extensions.help",
