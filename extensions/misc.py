@@ -269,6 +269,23 @@ class Misc(commands.Cog):
         await ctx.respond(embed=embed, view=view)
 
     @discord.slash_command(
+        name="invites",
+        description="View all active invites in the server",
+    )
+    async def _invites(self, ctx: discord.ApplicationContext):
+        invites = await ctx.guild.invites()
+        embed = discord.Embed(
+            title=f"Active Invites ({len(invites)})",
+            color=config["COLORS"]["INFO"],
+        )
+        for invite in invites:
+            embed.add_field(
+                name=invite.code,
+                value=f"**Creator**: {invite.inviter.mention}\n**Uses**: {invite.uses}\n**Channel**: {invite.channel.mention}",
+            )
+        await ctx.respond(embed=embed)
+
+    @discord.slash_command(
         name="tts",
         description="Sends a .mp3 file of text speech",
     )
