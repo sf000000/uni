@@ -33,7 +33,6 @@ class Bot(commands.AutoShardedBot):
             "extensions.information",
             "extensions.lastfm",
             "extensions.misc",
-            "extensions.games",
         ]
         for extension in self.inital_extensions:
             try:
