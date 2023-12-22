@@ -31,6 +31,7 @@ class Bot(commands.AutoShardedBot):
             "extensions.trivia",
             "extensions.moderation",
             "extensions.fun",
+            "extensions.economy",
             "extensions.lastfm",
             "extensions.tags",
             "extensions.twitch",
