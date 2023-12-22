@@ -79,6 +79,21 @@ class Economy(commands.Cog):
                 )
             await self.conn.commit()
 
+    def calculate_reward(self, chosen_slots, bet_amount, mention, currency_name):
+        if chosen_slots[0] == chosen_slots[1] == chosen_slots[2]:
+            reward = bet_amount * 5
+            return (
+                reward,
+                f"{mention} Jackpot! You've won **{reward}** {currency_name}!",
+            )
+        elif len(set(chosen_slots)) < 3:
+            reward = bet_amount * 2
+            return reward, f"{mention} Nice! You've won **{reward}** {currency_name}!"
+        return (
+            -bet_amount,
+            f"{mention} Better luck next time! You've lost **{bet_amount}** {currency_name}!",
+        )
+
     _bank = discord.commands.SlashCommandGroup(
         name="bank",
         description="Manage your bank.",
@@ -133,6 +148,36 @@ class Economy(commands.Cog):
         embed = discord.Embed(
             title="Daily Coins",
             description=f"You've claimed your daily coins of **{config['ECONOMY']['DAILY_AMOUNT']}** {config['ECONOMY']['CURRENCY_NAME']}.",
+            color=config["COLORS"]["SUCCESS"],
+        )
+        await ctx.respond(embed=embed)
+
+    @_bank.command(
+        name="add",
+        description="Add money to a user's balance.",
+    )
+    @commands.is_owner()
+    async def add(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Option(
+            discord.Member,
+            description="The user to add money to.",
+            required=True,
+            autocomplete=member_autocomplete,
+        ),
+        amount: discord.Option(
+            int, description="The amount of money to add.", required=True
+        ),
+    ):
+        if amount <= 0:
+            return await ctx.respond("You can't add a negative amount.", ephemeral=True)
+
+        await self.update_balance(user.id, ctx.guild.id, amount, True)
+
+        embed = discord.Embed(
+            title="Add",
+            description=f"You've added **{amount}** {config['ECONOMY']['CURRENCY_NAME']} to {user.mention}'s balance.",
             color=config["COLORS"]["SUCCESS"],
         )
         await ctx.respond(embed=embed)
@@ -201,58 +246,50 @@ class Economy(commands.Cog):
     )
 
     @_gamble.command(
-        name="coinflip",
-        description="Flip a coin.",
+        name="slots",
+        description="Play the slots.",
     )
-    async def coinflip(
+    async def slots(
         self,
         ctx: discord.ApplicationContext,
         amount: discord.Option(
             int, description="The amount of money to gamble.", required=True
         ),
-        coin_choice: discord.Option(
-            str,
-            description="The side of the coin to bet on.",
-            required=True,
-            choices=["heads", "tails"],
-        ),
     ):
         if amount <= 0:
             return await ctx.respond(
-                "You can't gamble a negative amount.", ephemeral=True
+                "You can't gamble a negative or zero amount.", ephemeral=True
             )
 
         balance = await self.get_balance(ctx.user.id, ctx.guild.id)
-        if balance is None:
-            return await ctx.respond(
-                "You don't have a balance yet. Use `/bank collect` to get started.",
-                ephemeral=True,
+        if not balance or balance[0] < amount:
+            message = (
+                "You don't have a balance yet. Use `/bank collect` to get started."
+                if not balance
+                else "You don't have enough money to gamble that amount."
             )
+            return await ctx.respond(message, ephemeral=True)
 
-        if balance[0] < amount:
-            return await ctx.respond(
-                "You don't have enough money to gamble that amount.", ephemeral=True
-            )
+        slots = ["💝", "🎉", "💎", "💵", "💰", "🚀", "🍿"]
+        chosen_slots = random.choices(slots, k=3)
+        slots_display = " | ".join(chosen_slots)
 
-        coin = random.choice(["heads", "tails"])
+        reward, content = self.calculate_reward(
+            chosen_slots, amount, ctx.author.mention, config["ECONOMY"]["CURRENCY_NAME"]
+        )
+        await self.update_balance(ctx.user.id, ctx.guild.id, reward, reward > 0)
 
-        if coin == coin_choice:
-            await self.update_balance(ctx.user.id, ctx.guild.id, amount, True)
-            embed = discord.Embed(
-                title="Coinflip",
-                description=f"You've won **{amount}** {config['ECONOMY']['CURRENCY_NAME']}!",
-                color=config["COLORS"]["SUCCESS"],
-            )
-        else:
-            await self.update_balance(ctx.user.id, ctx.guild.id, amount, False)
-            embed = discord.Embed(
-                title="Coinflip",
-                description=f"You've lost **{amount}** {config['ECONOMY']['CURRENCY_NAME']}!",
-                color=config["COLORS"]["ERROR"],
-            )
-
-        embed.add_field(name="Coin", value=coin, inline=False)
-        await ctx.respond(embed=embed)
+        embed = discord.Embed(
+            description=f"```\n| {slots_display} |\n```",
+            color=config["COLORS"]["SUCCESS"]
+            if reward > 0
+            else config["COLORS"]["ERROR"],
+        )
+        await ctx.respond(
+            content=content,
+            embed=embed,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
 
 def setup(bot_: discord.Bot):
