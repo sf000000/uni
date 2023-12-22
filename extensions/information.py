@@ -72,9 +72,21 @@ class Information(commands.Cog):
     async def sticker_add(
         self,
         ctx: discord.ApplicationContext,
-        name: str,
-        emoji: str,
-        sticker_url: str,
+        name: discord.Option(
+            str,
+            description="The name of the sticker",
+            required=True,
+        ),
+        emoji: discord.Option(
+            str,
+            description="The emoji to use for the sticker",
+            required=True,
+        ),
+        sticker_url: discord.Option(
+            str,
+            description="The URL of the sticker",
+            required=True,
+        ),
     ):
         async with aiohttp.ClientSession() as session:
             async with session.get(sticker_url) as resp:
@@ -99,7 +111,13 @@ class Information(commands.Cog):
         description="Remove a sticker from the server.",
     )
     @commands.has_permissions(manage_emojis_and_stickers=True)
-    async def sticker_remove(self, ctx: discord.ApplicationContext, sticker_name: str):
+    async def sticker_remove(
+        self,
+        ctx: discord.ApplicationContext,
+        sticker_name: discord.Option(
+            str, description="The name of the sticker to remove", required=True
+        ),
+    ):
         sticker = discord.utils.get(ctx.guild.stickers, name=sticker_name)
         if not sticker:
             return await ctx.respond("Sticker not found.", ephemeral=True)
@@ -114,7 +132,11 @@ class Information(commands.Cog):
     async def sticker_tag(
         self,
         ctx: discord.ApplicationContext,
-        vanity_code: str,
+        vanity_code: discord.Option(
+            str,
+            description="The vanity code to add to the stickers",
+            required=True,
+        ),
     ):
         await ctx.defer()
 
@@ -535,8 +557,16 @@ class Information(commands.Cog):
     async def reminders_add(
         self,
         ctx: discord.ApplicationContext,
-        time: str,
-        reminder: str,
+        time: discord.Option(
+            str,
+            description="The time to set the reminder for.",
+            required=True,
+        ),
+        reminder: discord.Option(
+            str,
+            description="The reminder message.",
+            required=True,
+        ),
     ):
         try:
             time = datetime.datetime.strptime(time, "%Y-%m-%d %H:%M")
@@ -614,7 +644,11 @@ class Information(commands.Cog):
     async def reminders_delete(
         self,
         ctx: discord.ApplicationContext,
-        reminder_id: int,
+        reminder_id: discord.Option(
+            int,
+            description="The ID of the reminder to delete.",
+            required=True,
+        ),
     ):
         async with self.conn.execute(
             "DELETE FROM reminders WHERE user_id = ? AND guild_id = ? AND id = ?",
