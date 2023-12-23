@@ -3,6 +3,7 @@ import aiosqlite
 import aiohttp
 
 from datetime import datetime, timezone
+from discord.ext import commands
 
 
 def iso_to_discord_timestamp(iso_date) -> str:
@@ -44,6 +45,6 @@ async def fetch_latest_commit_info() -> dict:
 
 async def is_premium(member: discord.Member, conn: aiosqlite.Connection) -> bool:
     async with conn.execute(
-        "SELECT * FROM premium WHERE user_id = ?", (member.id,)
+        "SELECT * FROM premium_users WHERE user_id = ?", (member.id,)
     ) as cursor:
         return await cursor.fetchone() is not None
