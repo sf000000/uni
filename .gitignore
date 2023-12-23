@@ -233,3 +233,5 @@ config.yml
 kino.db
 kino.db-journal
 start.bat
+application.yml
+Lavalink.jar
