@@ -82,6 +82,56 @@ class Music(commands.Cog):
                         await player.play(player.queue.get())
                     first_track_added = True
 
+        if len(player.queue) > 1:
+            queue_embed = self.create_queue_embed(player)
+            if hasattr(self, "current_track_message") and self.current_track_message:
+                try:
+                    await self.current_track_message.edit(embed=queue_embed)
+                except discord.NotFound:
+                    skip_button = discord.ui.Button(
+                        style=discord.ButtonStyle.gray,
+                        label="Skip",
+                    )
+                    skip_button.callback = lambda interaction: self.skip_track(
+                        interaction, skip_button
+                    )
+
+                    pause_button = discord.ui.Button(
+                        style=discord.ButtonStyle.gray,
+                        label="Pause",
+                    )
+                    pause_button.callback = lambda interaction: self.pause_track(
+                        interaction, pause_button
+                    )
+
+                    resume_button = discord.ui.Button(
+                        style=discord.ButtonStyle.blurple,
+                        label="Resume",
+                    )
+                    resume_button.callback = lambda interaction: self.resume_track(
+                        interaction, resume_button
+                    )
+
+                    disconnect_button = discord.ui.Button(
+                        style=discord.ButtonStyle.red,
+                        label="Disconnect",
+                    )
+                    disconnect_button.callback = (
+                        lambda interaction: self.disconnect_bot(
+                            interaction, disconnect_button
+                        )
+                    )
+
+                    view = discord.ui.View(timeout=None)
+                    view.add_item(pause_button)
+                    view.add_item(resume_button)
+                    view.add_item(skip_button)
+                    view.add_item(disconnect_button)
+
+                    self.current_track_message = await ctx.channel.send(
+                        embed=queue_embed, view=view
+                    )
+
     def create_queue_embed(self, player: wavelink.Player):
         if player is None or player.current is None:
             return discord.Embed(
