@@ -4,9 +4,9 @@ import yaml
 import json
 import os
 import datetime
+import openai
 
 from discord.ext import commands
-from openai import OpenAI
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
 
 
@@ -24,7 +24,7 @@ class Developer(commands.Cog):
         self.bot = bot_
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
-        self.client = OpenAI(api_key=config["OPENAI_API_KEY"])
+        self.open_ai = openai.OpenAI(api_key=config["OPENAI_API_KEY"])
         self.conversation_histories = {}
 
     async def setup_db(self):
@@ -163,7 +163,7 @@ class Developer(commands.Cog):
         user_history.append({"role": "user", "content": message})
 
         prompt = f"Q: {message}\nA:"
-        chat_completion = self.client.chat.completions.create(
+        chat_completion = self.open_ai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=user_history + [{"role": "system", "content": prompt}],
         )
