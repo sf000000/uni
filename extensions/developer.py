@@ -41,11 +41,9 @@ class Developer(commands.Cog):
     async def format_column(self, task_list, guild):
         if not task_list:
             return "```No Tasks```"
-        lines = []
-        for idx, task in enumerate(task_list):
-            member = guild.get_member(int(task[3]))
-            display_name = member.display_name if member else "Unknown member"
-            lines.append(f'{idx + 1} - "{task[1]}"')
+        lines = [
+            f"{idx + 1} - {task[1].capitalize()}" for idx, task in enumerate(task_list)
+        ]
         return "```" + "\n".join(lines) + "```"
 
     _dev = discord.commands.SlashCommandGroup(
@@ -434,7 +432,7 @@ class Developer(commands.Cog):
         in_progress_tasks = [task for task in tasks if task[2] == "in_progress"]
         completed_tasks = [task for task in tasks if task[2] == "completed"]
 
-        embed = discord.Embed(color=3447003)
+        embed = discord.Embed(color=config["COLORS"]["DEFAULT"])
         embed.add_field(
             name="Backlog",
             value=await self.format_column(backlog_tasks, ctx.guild),
