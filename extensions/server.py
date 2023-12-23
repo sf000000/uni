@@ -382,8 +382,15 @@ class Server(commands.Cog):
     ):
         await ctx.defer()
 
-        me = SnapChat(username)
-        snapcode_svg, filetype = me.get_snapcode(bitmoji=True)
+        snapchat_user = SnapChat(username)
+        error = await snapchat_user.check_username()
+
+        if error:
+            return await ctx.respond(error, ephemeral=True)
+
+        snapcode_svg, filetype, size = await snapchat_user.get_snapcode(
+            bitmoji=True, size=1000
+        )
 
         with open("temp/snapcode.svg", "wb") as file:
             file.write(snapcode_svg)
