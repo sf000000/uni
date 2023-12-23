@@ -46,7 +46,6 @@ class Developer(commands.Cog):
         lines = []
         for idx, task in enumerate(task_list):
             member = guild.get_member(int(task[3]))
-            # If the member is not found (might have left the server), use a placeholder
             display_name = member.display_name if member else "Unknown member"
             lines.append(f'{idx + 1} - "{task[1]}" added by: {display_name}')
         return "```" + "\n".join(lines) + "```"

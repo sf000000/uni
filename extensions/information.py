@@ -681,6 +681,28 @@ class Information(commands.Cog):
         )
 
     @discord.slash_command(
+        name="avatar",
+        description="Get a user's avatar.",
+    )
+    async def avatar(
+        self,
+        ctx: discord.ApplicationContext,
+        member: discord.Option(
+            discord.Member,
+            description="The user to get the avatar of",
+        ),
+    ):
+        member = member or ctx.author
+
+        embed = discord.Embed(color=config["COLORS"]["SUCCESS"])
+        embed.set_image(url=member.avatar.url)
+        embed.add_field(
+            name="Download this image",
+            value=f"[Click Here]({member.avatar.url})",
+        )
+        await ctx.respond(embed=embed)
+
+    @discord.slash_command(
         name="kickchannel",
         description="Get information about a Kick.com channel.",
     )
