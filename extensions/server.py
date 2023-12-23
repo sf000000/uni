@@ -6,6 +6,8 @@ import aiohttp
 import zipfile
 import os
 import io
+import wand.image
+import wand.color
 
 from discord.ext import commands
 from selenium import webdriver
@@ -386,19 +388,10 @@ class Server(commands.Cog):
         with open("temp/snapcode.svg", "wb") as file:
             file.write(snapcode_svg)
 
-        doc = aw.Document()
-        builder = aw.DocumentBuilder(doc)
-        shape = builder.insert_image("temp/snapcode.svg")
-
-        pageSetup = builder.page_setup
-        pageSetup.page_width = shape.width
-        pageSetup.page_height = shape.height
-        pageSetup.top_margin = 0
-        pageSetup.left_margin = 0
-        pageSetup.bottom_margin = 0
-        pageSetup.right_margin = 0
-
-        doc.save("temp/snapcode.png")
+        with wand.image.Image() as img:
+            with wand.color.Color("transparent") as background_color:
+                img.read(blob=snapcode_svg, background=background_color)
+                img.save(filename="temp/snapcode.png")
 
         await ctx.respond(file=discord.File("temp/snapcode.png"))
 
