@@ -530,6 +530,98 @@ class Developer(commands.Cog):
         embed.add_field(name="Description", value=task_description)
         await ctx.respond(embed=embed)
 
+    @discord.slash_command(
+        name="givepremium",
+        description="Gives a user premium.",
+    )
+    @commands.is_owner()
+    async def _givepremium(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Option(
+            discord.Member, "The user to give premium to.", required=True
+        ),
+    ):
+        # CREATE TABLE premium_users ( user_id BIGINT PRIMARY KEY, user_name TEXT, premium_granted_timestamp TIMESTAMP );
+        try:
+            async with self.conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO premium_users (user_id, user_name, premium_granted_timestamp) VALUES (?, ?, ?)",
+                    (user.id, user.name, ctx.created_at),
+                )
+                await self.conn.commit()
+
+            await ctx.respond(
+                embed=discord.Embed(
+                    description=f"{user.mention} has been upgraded to premium status. All premium features are now available.",
+                    color=config["COLORS"]["SUCCESS"],
+                )
+            )
+        except Exception as e:
+            await ctx.respond(f"Error occurred: {e}")
+
+    @discord.slash_command(
+        name="removepremium",
+        description="Removes a user's premium.",
+    )
+    @commands.is_owner()
+    async def _removepremium(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Option(
+            discord.Member, "The user to remove premium from.", required=True
+        ),
+    ):
+        try:
+            async with self.conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM premium_users WHERE user_id = ?", (user.id,)
+                )
+                await self.conn.commit()
+
+            await ctx.respond(
+                embed=discord.Embed(
+                    description=f"{user.mention} has been downgraded to standard status. All premium features are now unavailable.",
+                    color=config["COLORS"]["SUCCESS"],
+                )
+            )
+        except Exception as e:
+            await ctx.respond(f"Error occurred: {e}")
+
+    @discord.slash_command(
+        name="premiumstatus",
+        description="Checks a user's premium status.",
+    )
+    @commands.is_owner()
+    async def _premiumstatus(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Option(
+            discord.Member, "The user to check premium status for.", required=True
+        ),
+    ):
+        try:
+            async with self.conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM premium_users WHERE user_id = ?", (user.id,)
+                )
+                if await cur.fetchone():
+                    return await ctx.respond(
+                        embed=discord.Embed(
+                            description=f"{user.mention} is a premium user.",
+                            color=config["COLORS"]["DEFAULT"],
+                        )
+                    )
+
+            await ctx.respond(
+                embed=discord.Embed(
+                    description=f"{user.mention} is not a premium user.",
+                    color=config["COLORS"]["DEFAULT"],
+                )
+            )
+        except Exception as e:
+            await ctx.respond(f"Error occurred: {e}")
+
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
         async with self.conn.cursor() as cur:
