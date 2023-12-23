@@ -45,7 +45,7 @@ class Developer(commands.Cog):
         for idx, task in enumerate(task_list):
             member = guild.get_member(int(task[3]))
             display_name = member.display_name if member else "Unknown member"
-            lines.append(f'{idx + 1} - "{task[1]}" added by: {display_name}')
+            lines.append(f'{idx + 1} - "{task[1]}"')
         return "```" + "\n".join(lines) + "```"
 
     _dev = discord.commands.SlashCommandGroup(
@@ -436,7 +436,7 @@ class Developer(commands.Cog):
 
         embed = discord.Embed(color=3447003)
         embed.add_field(
-            name="Project Backlog",
+            name="Backlog",
             value=await self.format_column(backlog_tasks, ctx.guild),
             inline=False,
         )
@@ -446,7 +446,7 @@ class Developer(commands.Cog):
             inline=False,
         )
         embed.add_field(
-            name="Completed Tasks",
+            name="Completed",
             value=await self.format_column(completed_tasks, ctx.guild),
             inline=False,
         )
