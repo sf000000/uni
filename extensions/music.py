@@ -89,7 +89,7 @@ class Music(commands.Cog):
                     await self.current_track_message.edit(embed=queue_embed)
                 except discord.NotFound:
                     skip_button = discord.ui.Button(
-                        style=discord.ButtonStyle.blurple,
+                        style=discord.ButtonStyle.gray,
                         label="Skip",
                     )
                     skip_button.callback = lambda interaction: self.skip_track(
@@ -140,44 +140,21 @@ class Music(commands.Cog):
             )
 
         embed = discord.Embed(color=config["COLORS"]["DEFAULT"])
-
         current_track = player.current
-        track_length = ("🔴 Stream" if current_track.is_stream else str(datetime.timedelta(milliseconds=current_track.length)
-        ))  # fmt: skip
+        track_length = str(datetime.timedelta(milliseconds=current_track.length))[2:]
+
         embed.add_field(
-            name="Now Playing:",
-            value=f"`1.` [{current_track.title}]({current_track.uri}) | `{track_length}`",
+            name="Now Playing",
+            value=f"```{track_length} - {current_track.title} - {current_track.author}```",
             inline=False,
         )
 
-        def format_title(title, uri, idx, length, is_stream):
-            shortened_title = title if len(title) <= 35 else f"{title[:32]}..."
-            return f"`{idx}.` [{shortened_title}]({uri}) | `{ '🔴 Stream' if is_stream else datetime.timedelta(milliseconds=length)}`"
-
-        next_track_label = [
-            format_title(track.title, track.uri, idx + 2, track.length, track.is_stream)
-            for idx, track in enumerate(player.queue[:9])
-        ]
-
-        if player.auto_queue and len(next_track_label) < 9:
-            next_track_label.append(
-                "↓ The following tracks come from the `autoplay` mode. ↓"
-            )
-            next_track_label.extend(
-                [
-                    format_title(
-                        track.title, track.uri, idx + 1, track.length, track.is_stream
-                    )
-                    for idx, track in enumerate(
-                        player.auto_queue[: 9 - len(next_track_label)]
-                    )
-                ]
-            )
-
-        if next_track_label:
+        if len(player.queue) > 0:
+            next_track = player.queue.get()
+            track_length = str(datetime.timedelta(milliseconds=next_track.length))[2:]
             embed.add_field(
-                name=f"Next {len(next_track_label)} Tracks:",
-                value="\n".join(next_track_label),
+                name="Up Next",
+                value=f"```{track_length} - {next_track.title} - {next_track.author}```",
                 inline=False,
             )
 
@@ -701,7 +678,7 @@ class Music(commands.Cog):
             queue_embed = self.create_queue_embed(payload.player)
 
             skip_button = discord.ui.Button(
-                style=discord.ButtonStyle.blurple,
+                style=discord.ButtonStyle.gray,
                 label="Skip",
             )
             skip_button.callback = lambda interaction: self.skip_track(
