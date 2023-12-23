@@ -181,16 +181,12 @@ class Developer(commands.Cog):
         )
 
     @_dev.command(name="execute", description="Executes a SQL query.")
+    @commands.is_owner()
     async def execute(
         self,
         ctx: discord.ApplicationContext,
         query: discord.Option(str, "The SQL query to execute.", required=True),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         try:
             async with self.conn.cursor() as cur:
                 await cur.execute(query)
@@ -200,6 +196,7 @@ class Developer(commands.Cog):
             return await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(name="whitelist", description="Whitelists a guild to use the bot.")
+    @commands.is_owner()
     async def whitelist(
         self,
         ctx: discord.ApplicationContext,
@@ -207,11 +204,6 @@ class Developer(commands.Cog):
             str, "The ID of the guild to whitelist.", required=True
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         try:
             async with self.conn.cursor() as cur:
                 await cur.execute(
@@ -245,6 +237,7 @@ class Developer(commands.Cog):
     @_dev.command(
         name="unwhitelist", description="Unwhitelists a guild from using the bot."
     )
+    @commands.is_owner()
     async def unwhitelist(
         self,
         ctx: discord.ApplicationContext,
@@ -252,11 +245,6 @@ class Developer(commands.Cog):
             str, "The ID of the guild to unwhitelist.", required=True
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         try:
             async with self.conn.cursor() as cur:
                 await cur.execute(
@@ -291,6 +279,7 @@ class Developer(commands.Cog):
         name="status",
         description="Set bot's playing status.",
     )
+    @commands.is_owner()
     async def _status(
         self,
         ctx: discord.ApplicationContext,
@@ -298,27 +287,18 @@ class Developer(commands.Cog):
             str, "The status to set the bot's playing status to.", required=True
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         await self.bot.change_presence(activity=discord.Game(name=status))
 
     @_dev.command(
         name="reload",
         description="Reloads an extension.",
     )
+    @commands.is_owner()
     async def _reload(
         self,
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to reload.", required=True),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         self.bot.reload_extension(f"extensions.{extension}")
         await ctx.respond("\✅")
 
@@ -326,16 +306,12 @@ class Developer(commands.Cog):
         name="load",
         description="Loads an extension.",
     )
+    @commands.is_owner()
     async def _load(
         self,
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to load.", required=True),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         self.bot.load_extension(f"extensions.{extension}")
         await ctx.respond("\✅")
 
@@ -343,16 +319,12 @@ class Developer(commands.Cog):
         name="unload",
         description="Unloads an extension.",
     )
+    @commands.is_owner()
     async def _unload(
         self,
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to unload.", required=True),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         self.bot.unload_extension(f"extensions.{extension}")
         await ctx.respond("\✅")
 
@@ -360,12 +332,8 @@ class Developer(commands.Cog):
         name="reloadall",
         description="Reloads all extensions.",
     )
+    @commands.is_owner()
     async def _reloadall(self, ctx: discord.ApplicationContext):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         reloaded_extensions = 0
         for filename in os.listdir("./extensions"):
             if filename.endswith(".py"):
@@ -410,6 +378,7 @@ class Developer(commands.Cog):
         name="add",
         description="Adds a task to the kanban board.",
     )
+    @commands.is_owner()
     async def _add(
         self,
         ctx: discord.ApplicationContext,
@@ -427,11 +396,6 @@ class Developer(commands.Cog):
             ],
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         try:
             async with self.conn.cursor() as cur:
                 await cur.execute(
@@ -451,12 +415,8 @@ class Developer(commands.Cog):
         name="view",
         description="View the kanban board.",
     )
+    @commands.is_owner()
     async def _view(self, ctx: discord.ApplicationContext):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         async with self.conn.cursor() as cur:
             await cur.execute("SELECT * FROM kanban_tasks ORDER BY task_id")
             tasks = await cur.fetchall()
@@ -488,6 +448,7 @@ class Developer(commands.Cog):
         name="move",
         description="Moves a task on the kanban board.",
     )
+    @commands.is_owner()
     async def _move(
         self,
         ctx: discord.ApplicationContext,
@@ -505,11 +466,6 @@ class Developer(commands.Cog):
             ],
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
-
         async with self.conn.cursor() as cur:
             await cur.execute(
                 "SELECT * FROM kanban_tasks WHERE description = ?", (task_description,)
@@ -542,6 +498,7 @@ class Developer(commands.Cog):
         name="delete",
         description="Deletes a task from the kanban board.",
     )
+    @commands.is_owner()
     async def _delete(
         self,
         ctx: discord.ApplicationContext,
@@ -549,10 +506,6 @@ class Developer(commands.Cog):
             str, "The description of the task to delete.", required=True
         ),
     ):
-        if ctx.author.id != config["OWNER_ID"]:
-            raise commands.CommandInvokeError(
-                "You are not allowed to use this command."
-            )
         async with self.conn.cursor() as cur:
             await cur.execute(
                 "SELECT * FROM kanban_tasks WHERE description = ?", (task_description,)
