@@ -5,7 +5,7 @@ import aiohttp
 from datetime import datetime, timezone
 
 
-def iso_to_discord_timestamp(iso_date):
+def iso_to_discord_timestamp(iso_date) -> str:
     date_obj = datetime.fromisoformat(iso_date.rstrip("Z")).replace(tzinfo=timezone.utc)
     timestamp = int(date_obj.timestamp())
     return f"<t:{timestamp}:R>"
@@ -26,7 +26,7 @@ async def log(guild: discord.Guild, embed: discord.Embed, conn: aiosqlite.Connec
         return
 
 
-async def fetch_latest_commit_info():
+async def fetch_latest_commit_info() -> dict:
     repo_url = "https://api.github.com/repos/notjawad/uni/commits/main"
     async with aiohttp.ClientSession() as session:
         async with session.get(repo_url) as response:
