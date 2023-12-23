@@ -52,7 +52,6 @@ class HelpPaginator(discord.ui.View):
             discord.ui.Button(
                 style=discord.ButtonStyle.danger,
                 label="Close",
-                emoji="🗑️",
                 custom_id="close_help_command",
             )
         )
@@ -112,6 +111,9 @@ class HelpPaginator(discord.ui.View):
                 else command.name
             )
 
+            if full_name in self.help_command.cog.premium_commands:
+                full_name += " <:premium:1188267357932617758>"
+
             description_lines = [command.description or "No description"]
 
             if isinstance(command, discord.commands.SlashCommand):
@@ -133,10 +135,16 @@ class Help(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
         self.db_path = "kino.db"
+        self.premium_commands = set()
         self.bot.loop.create_task(self.setup_db())
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
+        async with self.conn.execute(
+            "SELECT command_name FROM premium_commands"
+        ) as cursor:
+            premium_commands = await cursor.fetchall()
+            self.premium_commands = {cmd[0] for cmd in premium_commands}
 
     @discord.slash_command(
         name="help",
