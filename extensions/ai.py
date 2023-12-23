@@ -93,7 +93,7 @@ class AI(commands.Cog):
 
         await ctx.interaction.edit_original_response(
             embed=discord.Embed(
-                color=config["COLORS"]["DEFAULT"],
+                color=config["COLORS"]["SUCCESS"],
             ).set_image(url=image_url)
         )
 
