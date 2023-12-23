@@ -40,3 +40,10 @@ async def fetch_latest_commit_info():
                 "date": json_response["commit"]["committer"]["date"],
                 "url": json_response["html_url"],
             }
+
+
+async def is_premium(member: discord.Member, conn: aiosqlite.Connection) -> bool:
+    async with conn.execute(
+        "SELECT * FROM premium WHERE user_id = ?", (member.id,)
+    ) as cursor:
+        return await cursor.fetchone() is not None
