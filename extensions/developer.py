@@ -3,10 +3,11 @@ import aiosqlite
 import yaml
 import json
 import os
+import datetime
 
 from discord.ext import commands
 from openai import OpenAI
-from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
+from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
 
 
 def load_config():
@@ -36,9 +37,6 @@ class Developer(commands.Cog):
                 "CREATE TABLE IF NOT EXISTS disabled_commands (command TEXT)"
             )
         await self.conn.commit()
-
-    async def cog_unload(self):
-        await self.conn.close()
 
     async def format_column(self, task_list, guild):
         if not task_list:
@@ -147,6 +145,17 @@ class Developer(commands.Cog):
         ctx: discord.ApplicationContext,
         message: discord.Option(str, "The message to send to Uni.", required=True),
     ):
+        if not await is_premium(
+            ctx.author,
+            self.conn,
+        ):
+            return await ctx.respond(
+                embed=discord.Embed(
+                    description="This command is only available to premium users.",
+                    color=config["COLORS"]["ERROR"],
+                )
+            )
+
         await ctx.defer()
 
         user_id = ctx.author.id
@@ -542,12 +551,15 @@ class Developer(commands.Cog):
             discord.Member, "The user to give premium to.", required=True
         ),
     ):
-        # CREATE TABLE premium_users ( user_id BIGINT PRIMARY KEY, user_name TEXT, premium_granted_timestamp TIMESTAMP );
         try:
             async with self.conn.cursor() as cur:
                 await cur.execute(
                     "INSERT INTO premium_users (user_id, user_name, premium_granted_timestamp) VALUES (?, ?, ?)",
-                    (user.id, user.name, ctx.created_at),
+                    (
+                        user.id,
+                        user.name,
+                        datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    ),
                 )
                 await self.conn.commit()
 
