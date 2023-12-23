@@ -40,6 +40,17 @@ class Developer(commands.Cog):
     async def cog_unload(self):
         await self.conn.close()
 
+    async def format_column(self, task_list, guild):
+        if not task_list:
+            return "```No Tasks```"
+        lines = []
+        for idx, task in enumerate(task_list):
+            member = guild.get_member(int(task[3]))
+            # If the member is not found (might have left the server), use a placeholder
+            display_name = member.display_name if member else "Unknown member"
+            lines.append(f'{idx + 1} - "{task[1]}" added by: {display_name}')
+        return "```" + "\n".join(lines) + "```"
+
     _dev = discord.commands.SlashCommandGroup(
         name="developer", description="Developer related commands."
     )
@@ -375,7 +386,7 @@ class Developer(commands.Cog):
     )
     async def _version(self, ctx: discord.ApplicationContext):
         commit_info = await fetch_latest_commit_info()
-        if isinstance(commit_info, str):  # If it's an error message
+        if isinstance(commit_info, str):
             await ctx.respond(commit_info)
         else:
             embed = discord.Embed(
@@ -391,6 +402,181 @@ class Developer(commands.Cog):
                 name="Date", value=iso_to_discord_timestamp(commit_info["date"])
             )
             await ctx.respond(embed=embed)
+
+    _kanban = discord.commands.SlashCommandGroup(
+        name="kanban", description="Kanban related commands."
+    )
+
+    @_kanban.command(
+        name="add",
+        description="Adds a task to the kanban board.",
+    )
+    async def _add(
+        self,
+        ctx: discord.ApplicationContext,
+        description: discord.Option(
+            str, "The description of the task to add.", required=True
+        ),
+        position: discord.Option(
+            str,
+            "The position to add the task to.",
+            required=True,
+            choices=[
+                discord.OptionChoice(name="Backlog", value="backlog"),
+                discord.OptionChoice(name="In Progress", value="in_progress"),
+                discord.OptionChoice(name="Completed", value="completed"),
+            ],
+        ),
+    ):
+        if ctx.author.id != config["OWNER_ID"]:
+            raise commands.CommandInvokeError(
+                "You are not allowed to use this command."
+            )
+
+        try:
+            async with self.conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO kanban_tasks (description, status, added_by) VALUES (?, ?, ?)",
+                    (description, position, str(ctx.author.id)),
+                )
+                await self.conn.commit()
+        except Exception as e:
+            return await ctx.respond(f"An error occurred: {e}")
+        embed = discord.Embed(
+            description=f"**{description}** has been added to the {position.title()} column by {ctx.author.mention}.",
+            color=config["COLORS"]["SUCCESS"],
+        )
+        await ctx.respond(embed=embed)
+
+    @_kanban.command(
+        name="view",
+        description="View the kanban board.",
+    )
+    async def _view(self, ctx: discord.ApplicationContext):
+        if ctx.author.id != config["OWNER_ID"]:
+            raise commands.CommandInvokeError(
+                "You are not allowed to use this command."
+            )
+
+        async with self.conn.cursor() as cur:
+            await cur.execute("SELECT * FROM kanban_tasks ORDER BY task_id")
+            tasks = await cur.fetchall()
+
+        backlog_tasks = [task for task in tasks if task[2] == "backlog"]
+        in_progress_tasks = [task for task in tasks if task[2] == "in_progress"]
+        completed_tasks = [task for task in tasks if task[2] == "completed"]
+
+        embed = discord.Embed(color=3447003)
+        embed.add_field(
+            name="Project Backlog",
+            value=await self.format_column(backlog_tasks, ctx.guild),
+            inline=False,
+        )
+        embed.add_field(
+            name="In Progress",
+            value=await self.format_column(in_progress_tasks, ctx.guild),
+            inline=False,
+        )
+        embed.add_field(
+            name="Completed Tasks",
+            value=await self.format_column(completed_tasks, ctx.guild),
+            inline=False,
+        )
+
+        await ctx.respond(embed=embed)
+
+    @_kanban.command(
+        name="move",
+        description="Moves a task on the kanban board.",
+    )
+    async def _move(
+        self,
+        ctx: discord.ApplicationContext,
+        task_description: discord.Option(
+            str, "The description of the task to move.", required=True
+        ),
+        new_position: discord.Option(
+            str,
+            "The new position to move the task to.",
+            required=True,
+            choices=[
+                discord.OptionChoice(name="Backlog", value="backlog"),
+                discord.OptionChoice(name="In Progress", value="in_progress"),
+                discord.OptionChoice(name="Completed", value="completed"),
+            ],
+        ),
+    ):
+        if ctx.author.id != config["OWNER_ID"]:
+            raise commands.CommandInvokeError(
+                "You are not allowed to use this command."
+            )
+
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT * FROM kanban_tasks WHERE description = ?", (task_description,)
+            )
+            task = await cur.fetchone()
+
+            if not task:
+                return await ctx.respond(
+                    embed=discord.Embed(
+                        description="Task not found.",
+                        color=config["COLORS"]["ERROR"],
+                    )
+                )
+
+            await cur.execute(
+                "UPDATE kanban_tasks SET status = ? WHERE task_id = ?",
+                (new_position, task[0]),
+            )
+            await self.conn.commit()
+
+        embed = discord.Embed(
+            description="Moved task on board.",
+            color=config["COLORS"]["SUCCESS"],
+        )
+        embed.add_field(name="Description", value=task_description)
+        embed.add_field(name="New Status", value=new_position)
+        await ctx.respond(embed=embed)
+
+    @_kanban.command(
+        name="delete",
+        description="Deletes a task from the kanban board.",
+    )
+    async def _delete(
+        self,
+        ctx: discord.ApplicationContext,
+        task_description: discord.Option(
+            str, "The description of the task to delete.", required=True
+        ),
+    ):
+        if ctx.author.id != config["OWNER_ID"]:
+            raise commands.CommandInvokeError(
+                "You are not allowed to use this command."
+            )
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT * FROM kanban_tasks WHERE description = ?", (task_description,)
+            )
+            task = await cur.fetchone()
+
+            if not task:
+                return await ctx.respond(
+                    embed=discord.Embed(
+                        description="Task not found.",
+                        color=config["COLORS"]["ERROR"],
+                    )
+                )
+
+            await cur.execute("DELETE FROM kanban_tasks WHERE task_id = ?", (task[0],))
+            await self.conn.commit()
+
+        embed = discord.Embed(
+            description="Deleted task from board.",
+            color=config["COLORS"]["SUCCESS"],
+        )
+        embed.add_field(name="Description", value=task_description)
+        await ctx.respond(embed=embed)
 
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
