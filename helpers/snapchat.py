@@ -1,5 +1,4 @@
-import requests
-import aspose.words as aw
+import aiohttp
 
 
 class SnapChat:
@@ -7,8 +6,11 @@ class SnapChat:
         self.username = username
         self.username_suggestions = ""
 
-    def check_username(self):
-        # This header is specific for checking the username
+    async def fetch(self, session, url, method="GET", data=None, headers=None):
+        async with session.request(method, url, data=data, headers=headers) as response:
+            return await response.json(), response.status
+
+    async def check_username(self):
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0",
             "Accept": "*/*",
@@ -18,63 +20,29 @@ class SnapChat:
             "Connection": "keep-alive",
             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
         }
+        check_username_url = f"https://accounts.snapchat.com/accounts/get_username_suggestions?requested_username={self.username}&xsrf_token=PlEcin8s5H600toD4Swngg"
 
-        check_username_url = "https://accounts.snapchat.com/accounts/get_username_suggestions?requested_username={}&xsrf_token=PlEcin8s5H600toD4Swngg"
+        async with aiohttp.ClientSession() as session:
+            data, status = await self.fetch(
+                session, check_username_url, "POST", headers=headers
+            )
 
-        r = requests.post(check_username_url.format(self.username), headers=headers)
+            if suggestions := data.get("reference", {}).get("suggestions", []):
+                self.username_suggestions = suggestions
 
-        data = r.json()
+            return data.get("reference", {}).get("error_message", None)
 
-        status = data.get("reference").get("status_code")
-        suggestions = data.get("reference").get("suggestions")
+    async def get_snapcode(self, bitmoji=False, size=None):
+        filetype = "SVG" if bitmoji else "PNG"
+        url = f"https://app.snapchat.com/web/deeplink/snapcode?username={self.username}&type={filetype}"
 
-        if len(suggestions):
-            self.username_suggestions = suggestions
+        if size and filetype == "PNG":
+            if int(size) > 1000:
+                raise ValueError("size can not exceed 1000")
+            url += f"&size={size}"
 
-        if status == "TAKEN" or "TOO_LONG" or "INVALID_CHAR":
-            error_message = data.get("reference").get("error_message")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                snapcode = await response.read()
 
-            return error_message
-
-        return "Username available"
-
-    def get_snapcode(self, bitmoji=False, size=None):
-        url = "https://app.snapchat.com/web/deeplink/snapcode?username={}&type={}"
-
-        if bitmoji == False:
-            filetype = "PNG"
-            snapcode_url = url.format(self.username, filetype)
-
-            if size:
-                if int(size) > 1000:
-                    raise ValueError("size can not exceed 1000")
-
-                url_with_size = url + "&size={}"
-                snapcode_url = url_with_size.format(self.username, filetype, size)
-
-                size = str(size) + "x" + str(size)
-
-                r = requests.get(snapcode_url)
-                snapcode = r.content
-
-                return snapcode, filetype, size
-
-            return snapcode, filetype
-
-        else:
-            # NOTICE: You cant resize the SVG because there is
-            #         no need to do that.
-
-            # If filetype is SVG, you will get the
-            # SnapCode with the bitmoji
-            filetype = "SVG"
-
-            # Putting all the information into the url
-            snapcode_url = url.format(self.username, filetype)
-
-            r = requests.get(snapcode_url)
-
-            # The SnapCode as raw
-            snapcode = r.content
-
-            return snapcode, filetype
+        return snapcode, filetype, f"{size}x{size}" if size else None
