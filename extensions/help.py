@@ -112,7 +112,7 @@ class HelpPaginator(discord.ui.View):
             )
 
             if full_name in self.help_command.cog.premium_commands:
-                full_name += " <:premium:1188267357932617758>"
+                full_name += " " + config["EMOJIS"]["PREMIUM"]
 
             description_lines = [command.description or "No description"]
 
