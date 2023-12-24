@@ -24,6 +24,7 @@ class AI(commands.Cog):
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
         self.open_ai = openai.AsyncOpenAI(api_key=config["OPENAI_API_KEY"])
+        self.conversation_history = {}
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -95,6 +96,59 @@ class AI(commands.Cog):
             embed=discord.Embed(
                 color=config["COLORS"]["SUCCESS"],
             ).set_image(url=image_url)
+        )
+
+    @_ai.command(name="chat", description="Chat with Uni.")
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def chat(
+        self,
+        ctx: discord.ApplicationContext,
+        message: discord.Option(str, "The message to send to Uni.", required=True),
+    ):
+        if not await is_premium(
+            ctx.author,
+            self.conn,
+        ):
+            return await ctx.respond(
+                embed=discord.Embed(
+                    description=config["MESSAGES"]["PREMIUM_ONLY"],
+                    color=config["COLORS"]["ERROR"],
+                )
+            )
+
+        await ctx.defer()
+
+        user_id = ctx.author.id
+        user_history = self.conversation_history.setdefault(user_id, [])
+        user_history.append({"role": "user", "content": message})
+
+        prompt = f"Q: {message}\nA:"
+        chat_response = await self.open_ai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=user_history + [{"role": "system", "content": prompt}],
+        )
+
+        bot_response = chat_response.choices[0].message.content.strip()
+
+        user_history.append({"role": "assistant", "content": bot_response})
+        history_length = len(user_history) // 2
+
+        clear_history_button = discord.ui.Button(
+            style=discord.ButtonStyle.danger,
+            label=f"Clear History ({history_length})",
+            custom_id="clear_message_history",
+        )
+        clear_history_button.callback = self._clear_message_history_callback
+        view = discord.ui.View(clear_history_button)
+
+        await ctx.respond(bot_response, view=view)
+
+    async def _clear_message_history_callback(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        self.conversation_history[user_id] = []
+        await interaction.response.edit_message(
+            content="Message history cleared.", view=None
         )
 
 
