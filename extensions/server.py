@@ -503,10 +503,10 @@ class Server(commands.Cog):
 
         embed = discord.Embed(title=ctx.guild.name, color=config["COLORS"]["DEFAULT"])
         embed.description = (
-            f"{total_members} members ({bot_count} bots) | 🟢 {online_count} online\n\n"
+            f"\👥 {total_members} members (\🤖 {bot_count} bots) | \🟢 {online_count} online\n\n"
             f"**Owner:** {owner}\n**Created:** {created}\n**Security:** {security}\n\n"
-            f"💬 {text_channels} channels | 🔈 {voice_channels} voice channels | "
-            f"👤 {roles} roles | 🐸 {emojis} emotes"
+            f"\💬 {text_channels} channels | \🔈 {voice_channels} voice channels | "
+            f"\👤 {roles} roles | \🐸 {emojis} emotes"
         )
         embed.set_thumbnail(url=ctx.guild.icon.url)
 
