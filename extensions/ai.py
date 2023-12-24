@@ -2,16 +2,9 @@ import discord
 import aiosqlite
 import yaml
 import openai
-import aiohttp
-import io
-import os
-import random
-import asyncio
-import concurrent.futures
 
 from discord.ext import commands
 from helpers.utils import is_premium
-from PIL import Image, ImageDraw, ImageFont
 
 
 def load_config():
