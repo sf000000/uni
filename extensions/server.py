@@ -462,6 +462,43 @@ class Server(commands.Cog):
                 embed.set_thumbnail(url=person["displayPicRaw"])
                 await ctx.respond(embed=embed)
 
+    @discord.slash_command(
+        name="server",
+        description="Get some information about the server",
+    )
+    async def _server(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+
+        total_members = len(ctx.guild.members)
+        bot_count = sum(member.bot for member in ctx.guild.members)
+        online_count = sum(
+            member.status != discord.Status.offline for member in ctx.guild.members
+        )
+
+        if ctx.guild.id == config["HOME_GUILD"]:
+            owner = ctx.guild.get_member(config["OWNER_ID"]).mention
+        else:
+            owner = ctx.guild.owner
+
+        created = f"<t:{int(ctx.guild.created_at.timestamp())}:R>"
+        security = f"Verification Level: {ctx.guild.verification_level}\nExplicit Content Filter: {ctx.guild.explicit_content_filter}"
+
+        text_channels = len(ctx.guild.text_channels)
+        voice_channels = len(ctx.guild.voice_channels)
+        roles = len(ctx.guild.roles)
+        emojis = len(ctx.guild.emojis)
+
+        embed = discord.Embed(title=ctx.guild.name, color=0x2B2D31)
+        embed.description = (
+            f"{total_members} members ({bot_count} bots) | 🟢 {online_count} online\n\n"
+            f"**Owner:** {owner}\n**Created:** {created}\n**Security:** {security}\n\n"
+            f"💬 {text_channels} channels | 🔈 {voice_channels} voice channels | "
+            f"👤 {roles} roles | 🐸 {emojis} emotes"
+        )
+        embed.set_thumbnail(url=ctx.guild.icon.url)
+
+        await ctx.respond(embed=embed)
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         async with self.conn.cursor() as cur:
