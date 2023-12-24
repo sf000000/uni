@@ -64,6 +64,17 @@ class Server(commands.Cog):
             channel for channel in channels if string.lower() in channel.name.lower()
         ]
 
+    def format_activity(self, activity):
+        activity_formats = {
+            discord.Spotify: lambda a: f"Listening to **{a.artist} - {a.title}**",
+            discord.Game: lambda a: f"Playing **{a}**",
+            discord.Streaming: lambda a: f"Watching **{a}**",
+        }
+
+        formatter = activity_formats.get(type(activity))
+
+        return f" | {formatter(activity)}" if formatter else ""
+
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
         try:
@@ -497,6 +508,58 @@ class Server(commands.Cog):
         )
         embed.set_thumbnail(url=ctx.guild.icon.url)
 
+        await ctx.respond(embed=embed)
+
+    @discord.slash_command(
+        name="whois",
+        description="Get information about a user.",
+    )
+    async def user_info(
+        self,
+        ctx: discord.ApplicationContext,
+        member: discord.Option(
+            discord.Member, "The user to get information about", required=False
+        ),
+    ):
+        await ctx.defer()
+
+        user = member or ctx.author
+
+        status = str(user.status).title()
+        if status == "Dnd":
+            status = "\🔴 DND"
+        if status == "Idle":
+            status = "\🌙 Idle"
+        if status == "Offline":
+            status = "\⚫ Offline"
+        if status == "Online":
+            status = "\🟢 Online"
+
+        activity = user.activities[0].name if user.activities else "None"
+        created = f"<t:{int(user.created_at.timestamp())}:R>"
+        joined = f"<t:{int(user.joined_at.timestamp())}:R>"
+
+        roles = ", ".join(
+            [role.mention for role in user.roles if role != ctx.guild.default_role]
+        )
+
+        fetched_user = await self.bot.fetch_user(user.id)
+
+        activity_phrase = (
+            self.format_activity(user.activities[0]) if user.activities else "None"
+        )
+
+        embed = discord.Embed(color=0x2B2D31)
+        embed.description = f"{status} {activity_phrase}\n\n"
+        embed.add_field(name="Created", value=created, inline=True)
+        embed.add_field(name="Joined", value=joined, inline=True)
+        embed.add_field(name="Roles", value=roles, inline=False)
+
+        if fetched_user.banner:
+            embed.description += f"\n**Banner:** [Link]({fetched_user.banner.url})"
+            embed.set_image(url=fetched_user.banner.url)
+
+        embed.set_thumbnail(url=user.display_avatar.url)
         await ctx.respond(embed=embed)
 
     @commands.Cog.listener()
