@@ -173,7 +173,7 @@ class Misc(commands.Cog):
 
     @discord.slash_command(
         name="movie",
-        description="Get a link to watch a movie 🏴‍☠🦜",
+        description="Get a link to watch a movie.",
     )
     async def _movie(
         self,
