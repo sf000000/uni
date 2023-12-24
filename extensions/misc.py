@@ -3,9 +3,10 @@ import aiosqlite
 import yaml
 import uwuify
 import aiohttp
-import os
+import os, json
 
 from discord.ext import commands
+from PIL import Image, ImageDraw
 
 
 def load_config():
@@ -333,6 +334,42 @@ class Misc(commands.Cog):
 
             await ctx.respond(file=discord.File("tts.mp3"))
             os.remove("tts.mp3")
+
+    @discord.slash_command(name="colorscheme", description="Generate a color scheme")
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def _colorscheme(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+
+        url = "http://colormind.io/api/"
+        payload = {"model": "default"}
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as response:
+                if response.status == 200:
+                    data = json.loads(await response.text())
+                    colors = data.get("result", [])
+                else:
+                    await ctx.respond("Failed to fetch color scheme.")
+                    return
+
+        if not colors:
+            await ctx.respond("No colors received from the service.")
+            return
+
+        try:
+            image = Image.new("RGB", (100 * len(colors), 100))
+            draw = ImageDraw.Draw(image)
+            for i, color in enumerate(colors):
+                draw.rectangle([(i * 100, 0), ((i + 1) * 100, 100)], fill=tuple(color))
+
+            filename = "colors.png"
+            image.save(filename)
+            await ctx.respond(file=discord.File(filename))
+        except Exception as e:
+            await ctx.respond(f"Error creating the color image: {e}")
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
 
 
 def setup(bot_: discord.Bot):
