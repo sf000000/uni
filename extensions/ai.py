@@ -4,9 +4,14 @@ import yaml
 import openai
 import aiohttp
 import io
+import os
+import random
+import asyncio
+import concurrent.futures
 
 from discord.ext import commands
 from helpers.utils import is_premium
+from PIL import Image, ImageDraw, ImageFont
 
 
 def load_config():
@@ -100,7 +105,6 @@ class AI(commands.Cog):
 
     @_ai.command(name="chat", description="Chat with Uni.")
     @commands.guild_only()
-    @commands.has_permissions(administrator=True)
     async def chat(
         self,
         ctx: discord.ApplicationContext,
@@ -150,6 +154,55 @@ class AI(commands.Cog):
         await interaction.response.edit_message(
             content="Message history cleared.", view=None
         )
+
+    @_ai.command(name="chatlog", description="View your chat history with Uni.")
+    @commands.guild_only()
+    async def chatlog(self, ctx: discord.ApplicationContext):
+        if not await is_premium(
+            ctx.author,
+            self.conn,
+        ):
+            return await ctx.respond(
+                embed=discord.Embed(
+                    description=config["MESSAGES"]["PREMIUM_ONLY"],
+                    color=config["COLORS"]["ERROR"],
+                )
+            )
+
+        await ctx.defer()
+
+        user_id = ctx.author.id
+        user_history = self.conversation_history.setdefault(user_id, [])
+        if not user_history:
+            return await ctx.respond(
+                embed=discord.Embed(
+                    description="You have no chat history with Uni.",
+                    color=config["COLORS"]["ERROR"],
+                )
+            )
+
+        history_length = len(user_history) // 2
+        embed = discord.Embed(
+            description=f"Here is your chat history with Uni. You have a total of (**{history_length}**) messages.",
+            color=config["COLORS"]["DEFAULT"],
+        )
+
+        for message in user_history:
+            embed.add_field(
+                name="Uni" if message["role"] == "assistant" else ctx.author.name,
+                value=message["content"],
+                inline=False,
+            )
+
+        clear_history_button = discord.ui.Button(
+            style=discord.ButtonStyle.danger,
+            label=f"Clear History ({history_length})",
+            custom_id="clear_message_history",
+        )
+        view = discord.ui.View(clear_history_button)
+        clear_history_button.callback = self._clear_message_history_callback
+
+        await ctx.respond(embed=embed, view=view)
 
 
 def setup(bot_: discord.Bot):
