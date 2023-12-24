@@ -4,7 +4,7 @@ import yaml
 import json
 import os
 import datetime
-import openai
+import aiohttp
 
 from discord.ext import commands
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
@@ -24,8 +24,6 @@ class Developer(commands.Cog):
         self.bot = bot_
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
-        self.open_ai = openai.OpenAI(api_key=config["OPENAI_API_KEY"])
-        self.conversation_history = {}
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -131,61 +129,6 @@ class Developer(commands.Cog):
             await ctx.respond(f"Command `{command}` has been enabled.")
         except Exception as e:
             await ctx.respond(f"An error occurred: {e}")
-
-    @discord.slash_command(
-        name="chat",
-        description="Chat with Uni.",
-    )
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
-    async def chat(
-        self,
-        ctx: discord.ApplicationContext,
-        message: discord.Option(str, "The message to send to Uni.", required=True),
-    ):
-        if not await is_premium(
-            ctx.author,
-            self.conn,
-        ):
-            return await ctx.respond(
-                embed=discord.Embed(
-                    description=config["MESSAGES"]["PREMIUM_ONLY"],
-                    color=config["COLORS"]["ERROR"],
-                )
-            )
-
-        await ctx.defer()
-
-        user_id = ctx.author.id
-        user_history = self.conversation_history.setdefault(user_id, [])
-        user_history.append({"role": "user", "content": message})
-
-        prompt = f"Q: {message}\nA:"
-        chat_completion = self.open_ai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=user_history + [{"role": "system", "content": prompt}],
-        )
-
-        bot_response = chat_completion.choices[0].message.content
-        user_history.append({"role": "assistant", "content": bot_response})
-        history_length = len(user_history) // 2
-
-        clear_history_button = discord.ui.Button(
-            style=discord.ButtonStyle.danger,
-            label=f"Clear History ({history_length})",
-            custom_id="clear_message_history",
-        )
-        clear_history_button.callback = self._clear_message_history_callback
-        view = discord.ui.View(clear_history_button)
-
-        await ctx.respond(bot_response, view=view)
-
-    async def _clear_message_history_callback(self, interaction: discord.Interaction):
-        user_id = interaction.user.id
-        self.conversation_history[user_id] = []
-        await interaction.response.edit_message(
-            content="Message history cleared.", view=None
-        )
 
     @_dev.command(name="execute", description="Executes a SQL query.")
     @commands.is_owner()
@@ -627,6 +570,43 @@ class Developer(commands.Cog):
                 embed=discord.Embed(
                     description=f"{user.mention} is not a premium user.",
                     color=config["COLORS"]["DEFAULT"],
+                )
+            )
+        except Exception as e:
+            await ctx.respond(f"Error occurred: {e}")
+
+    @discord.slash_command(
+        name="botpfp",
+        description="Changes the bot's profile picture.",
+    )
+    @commands.is_owner()
+    async def _botpfp(
+        self,
+        ctx: discord.ApplicationContext,
+        image_url: discord.Option(
+            str,
+            "The URL of the image to set the bot's profile picture to.",
+            required=True,
+        ),
+    ):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url) as resp:
+                if resp.status != 200:
+                    return await ctx.respond(
+                        embed=discord.Embed(
+                            description="Invalid image URL.",
+                            color=config["COLORS"]["ERROR"],
+                        )
+                    )
+
+                image_bytes = await resp.read()
+
+        try:
+            await self.bot.user.edit(avatar=image_bytes)
+            await ctx.respond(
+                embed=discord.Embed(
+                    description="Successfully changed the bot's profile picture.",
+                    color=config["COLORS"]["SUCCESS"],
                 )
             )
         except Exception as e:
