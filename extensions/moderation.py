@@ -689,6 +689,39 @@ class Moderation(commands.Cog):
     )
 
     @_role.command(
+        name="info",
+        description="Get information about a role",
+    )
+    @commands.guild_only()
+    async def info(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(
+            discord.Role, "Select a role", autocomplete=role_autocomplete
+        ),
+    ):
+        online_members = sum(m.status != discord.Status.offline for m in role.members)
+        key_permissions = ", ".join(
+            perm.replace("_", " ").title() for perm, value in role.permissions if value
+        )
+
+        embed = discord.Embed(color=role.color, description=key_permissions)
+        embed.add_field(
+            name="Position",
+            value=f"🔢 {role.position}/{len(ctx.guild.roles)}",
+        )
+        embed.add_field(name="Color", value=f"\🎨 #{str(role.color)[1:]}", inline=True)
+        embed.add_field(
+            name="Members",
+            value=f"\👥 {len(role.members)} | \💚 {online_members} Online",
+        )
+        embed.add_field(
+            name="Created",
+            value=f"\📅 <t:{int(role.created_at.timestamp())}:R>",
+        )
+        await ctx.respond(embed=embed)
+
+    @_role.command(
         name="add",
         description="Add a role to a member",
     )
