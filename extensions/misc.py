@@ -345,16 +345,13 @@ class Misc(commands.Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    data = json.loads(await response.text())
-                    colors = data.get("result", [])
-                else:
-                    await ctx.respond("Failed to fetch color scheme.")
-                    return
+                if response.status != 200:
+                    return await ctx.respond("Failed to fetch color scheme.")
 
+                data = json.loads(await response.text())
+                colors = data.get("result", [])
         if not colors:
-            await ctx.respond("No colors received from the service.")
-            return
+            return await ctx.respond("No colors received from the service.")
 
         try:
             image = Image.new("RGB", (100 * len(colors), 100))
