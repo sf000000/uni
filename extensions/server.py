@@ -8,6 +8,7 @@ import os
 import io
 import wand.image
 import wand.color
+import pytz
 
 from discord.ext import commands
 from selenium import webdriver
@@ -16,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from helpers.snapchat import *
+from datetime import datetime, timedelta
 
 
 def load_config():
@@ -441,7 +443,7 @@ class Server(commands.Cog):
                 person = data["people"][0]
 
                 embed = discord.Embed(
-                    color=int("313338", 16),
+                    color=config["COLORS"]["SUCCESS"],
                 )
 
                 embed.add_field(name="Gamertag", value=person["gamertag"], inline=True)
@@ -499,7 +501,7 @@ class Server(commands.Cog):
         roles = len(ctx.guild.roles)
         emojis = len(ctx.guild.emojis)
 
-        embed = discord.Embed(title=ctx.guild.name, color=0x2B2D31)
+        embed = discord.Embed(title=ctx.guild.name, color=config["COLORS"]["DEFAULT"])
         embed.description = (
             f"{total_members} members ({bot_count} bots) | 🟢 {online_count} online\n\n"
             f"**Owner:** {owner}\n**Created:** {created}\n**Security:** {security}\n\n"
@@ -535,7 +537,6 @@ class Server(commands.Cog):
         if status == "Online":
             status = "\🟢 Online"
 
-        activity = user.activities[0].name if user.activities else "None"
         created = f"<t:{int(user.created_at.timestamp())}:R>"
         joined = f"<t:{int(user.joined_at.timestamp())}:R>"
 
@@ -549,7 +550,7 @@ class Server(commands.Cog):
             self.format_activity(user.activities[0]) if user.activities else "None"
         )
 
-        embed = discord.Embed(color=0x2B2D31)
+        embed = discord.Embed(color=config["COLORS"]["DEFAULT"])
         embed.description = f"{status} {activity_phrase}\n\n"
         embed.add_field(name="Created", value=created, inline=True)
         embed.add_field(name="Joined", value=joined, inline=True)
@@ -560,6 +561,57 @@ class Server(commands.Cog):
             embed.set_image(url=fetched_user.banner.url)
 
         embed.set_thumbnail(url=user.display_avatar.url)
+        await ctx.respond(embed=embed)
+
+    @discord.slash_command(
+        name="statistics", description="Get simple statistics about the server."
+    )
+    async def _statistics(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+
+        members = ctx.guild.members
+        bots = [member for member in members if member.bot]
+        online = [
+            member for member in members if member.status != discord.Status.offline
+        ]
+
+        now = datetime.now(pytz.UTC)
+        day_ago = now - timedelta(days=1)
+        day_joined = [
+            member
+            for member in members
+            if member.joined_at and member.joined_at.replace(tzinfo=pytz.UTC) > day_ago
+        ]
+
+        week_ago = now - timedelta(days=7)
+        week_joined = [
+            member
+            for member in members
+            if member.joined_at and member.joined_at.replace(tzinfo=pytz.UTC) > week_ago
+        ]
+
+        bans_count = 0
+        async for ban in ctx.guild.bans(limit=None):
+            bans_count += 1
+
+        embed = discord.Embed(
+            description=f"\👥 **{len(members)}** Members | \💚 **{len(online)}** Online | \🤖 **{len(bots)}** Bots",
+            color=config["COLORS"]["DEFAULT"],
+        )
+        embed.add_field(
+            name="New Members",
+            value=f"\👥 Today: **{len(day_joined)}**\n\👥 This Week: **{len(week_joined)}**",
+            inline=False,
+        )
+        embed.add_field(
+            name="Bans and Boosts",
+            value=f"\🔨 Bans: **{bans_count}**\n\🚀 Boosts: **{ctx.guild.premium_subscription_count}**",
+            inline=False,
+        )
+        if ctx.guild.splash:
+            embed.set_image(url=ctx.guild.splash.url)
+        embed.set_thumbnail(url=ctx.guild.icon.url)
+
         await ctx.respond(embed=embed)
 
     @commands.Cog.listener()
