@@ -25,7 +25,7 @@ class Developer(commands.Cog):
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
         self.open_ai = openai.OpenAI(api_key=config["OPENAI_API_KEY"])
-        self.conversation_histories = {}
+        self.conversation_history = {}
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -157,7 +157,7 @@ class Developer(commands.Cog):
         await ctx.defer()
 
         user_id = ctx.author.id
-        user_history = self.conversation_histories.setdefault(user_id, [])
+        user_history = self.conversation_history.setdefault(user_id, [])
         user_history.append({"role": "user", "content": message})
 
         prompt = f"Q: {message}\nA:"
@@ -182,7 +182,7 @@ class Developer(commands.Cog):
 
     async def _clear_message_history_callback(self, interaction: discord.Interaction):
         user_id = interaction.user.id
-        self.conversation_histories[user_id] = []
+        self.conversation_history[user_id] = []
         await interaction.response.edit_message(
             content="Message history cleared.", view=None
         )
