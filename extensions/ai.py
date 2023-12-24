@@ -74,7 +74,7 @@ class AI(commands.Cog):
         ):
             return await ctx.respond(
                 embed=discord.Embed(
-                    description="This command is only available to premium users.",
+                    description=config["MESSAGES"]["PREMIUM_ONLY"],
                     color=config["COLORS"]["ERROR"],
                 )
             )
