@@ -5,6 +5,7 @@ import json
 import os
 import datetime
 import aiohttp
+import ast
 
 from discord.ext import commands
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
@@ -44,9 +45,55 @@ class Developer(commands.Cog):
         ]
         return "```" + "\n".join(lines) + "```"
 
+    def insert_returns(self, body: list):
+        if isinstance(body[-1], ast.Expr):
+            body[-1] = ast.Return(body[-1].value)
+            ast.fix_missing_locations(body[-1])
+
+        if isinstance(body[-1], (ast.If, ast.With)):
+            self.insert_returns(body[-1].body)
+            if isinstance(body[-1], ast.If):
+                self.insert_returns(body[-1].orelse)
+
     _dev = discord.commands.SlashCommandGroup(
         name="developer", description="Developer related commands."
     )
+
+    @_dev.command(
+        name="eval",
+        description="Evaluates Python code.",
+    )
+    @commands.is_owner()
+    async def _eval(
+        self,
+        ctx: discord.ApplicationContext,
+        code: discord.Option(str, "The Python code to evaluate.", required=True),
+    ):
+        fn_name = "_eval_expr"
+        cmd = code.strip("` ")
+        cmd = "\n".join(f"    {i}" for i in cmd.splitlines())
+
+        body = f"async def {fn_name}():\n{cmd}"
+        parsed = ast.parse(body)
+        body = parsed.body[0].body
+
+        self.insert_returns(body)
+
+        env = {
+            "bot": self.bot,
+            "discord": discord,
+            "commands": commands,
+            "ctx": ctx,
+            "__import__": __import__,
+        }
+
+        try:
+            exec(compile(parsed, filename="<ast>", mode="exec"), env)
+            result = await eval(f"{fn_name}()", env)
+
+            await ctx.respond(f"```py\n{result}\n```" if result else "\✅")
+        except Exception as e:
+            await ctx.respond(f"```py\n{e}\n```")
 
     @_dev.command(
         name="rawembed",
