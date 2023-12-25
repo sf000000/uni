@@ -187,7 +187,7 @@ class Moderation(commands.Cog):
     ):
         try:
             await thread.edit(locked=True)
-            await ctx.respond(f"\🔒 Successfully locked {thread.mention}.")
+            await ctx.respond(f"🔒 Successfully locked {thread.mention}.")
 
             await log(
                 guild=ctx.guild,
@@ -215,7 +215,7 @@ class Moderation(commands.Cog):
     ):
         try:
             await thread.edit(locked=False)
-            await ctx.respond(f"\🔓 Successfully unlocked {thread.mention}.")
+            await ctx.respond(f"🔓 Successfully unlocked {thread.mention}.")
 
             await log(
                 guild=ctx.guild,
@@ -710,14 +710,14 @@ class Moderation(commands.Cog):
             name="Position",
             value=f"🔢 {role.position}/{len(ctx.guild.roles)}",
         )
-        embed.add_field(name="Color", value=f"\🎨 #{str(role.color)[1:]}", inline=True)
+        embed.add_field(name="Color", value=f"🎨 #{str(role.color)[1:]}", inline=True)
         embed.add_field(
             name="Members",
-            value=f"\👥 {len(role.members)} | \💚 {online_members} Online",
+            value=f"👥 {len(role.members)} | 💚 {online_members} Online",
         )
         embed.add_field(
             name="Created",
-            value=f"\📅 <t:{int(role.created_at.timestamp())}:R>",
+            value=f"📅 <t:{int(role.created_at.timestamp())}:R>",
         )
         await ctx.respond(embed=embed)
 
@@ -1305,7 +1305,9 @@ class Moderation(commands.Cog):
             if not new_users:
                 return await ctx.respond("No new users found.")
             for member in new_users:
-                embed.add_field(name=member.name, value=member.mention)
+                embed.add_field(
+                    name=member.name, value=f"<t:{int(member.joined_at.timestamp())}:R>"
+                )
             await ctx.respond(embed=embed)
         except Exception as e:
             await ctx.respond(f"Failed to get new users: {e}")
