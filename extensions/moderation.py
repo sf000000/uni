@@ -1291,12 +1291,11 @@ class Moderation(commands.Cog):
     async def newusers(self, ctx: discord.ApplicationContext):
         try:
             embed = discord.Embed(
-                title="New Users",
                 description="New users in the past 24 hours",
-                color=int("313338", 16),
+                color=config["COLORS"]["DEFAULT"],
             )
             utc = pytz.utc
-            now = datetime.now(utc)
+            now = datetime.datetime.now(utc)
             one_day_ago = now - datetime.timedelta(days=1)
             new_users = [
                 member
@@ -1306,7 +1305,7 @@ class Moderation(commands.Cog):
             if not new_users:
                 return await ctx.respond("No new users found.")
             for member in new_users:
-                embed.add_field(name=member.display_name, value=member.mention)
+                embed.add_field(name=member.name, value=member.mention)
             await ctx.respond(embed=embed)
         except Exception as e:
             await ctx.respond(f"Failed to get new users: {e}")
