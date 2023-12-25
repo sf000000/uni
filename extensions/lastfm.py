@@ -239,19 +239,13 @@ class LastFM(commands.Cog):
         name="whois",
         description="View Last.fm profile information",
     )
-    async def lastfm_whois(self, ctx: discord.ApplicationContext):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT username FROM lastfm WHERE user_id = ?", (ctx.author.id,)
-            )
-            username = await cur.fetchone()
-            if not username:
-                return await ctx.respond(
-                    "You haven't set your LastFM username yet. Use `/lastfm set` to set it.",
-                    ephemeral=True,
-                )
-            username = username[0]
-
+    async def lastfm_whois(
+        self,
+        ctx: discord.ApplicationContext,
+        username: discord.Option(
+            str, description="The username to search for.", required=True
+        ),
+    ):
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={username}&api_key={config['LASTFM_API_KEY']}&format=json"
@@ -266,9 +260,7 @@ class LastFM(commands.Cog):
 
         user = data["user"]
         embed = discord.Embed(
-            title=user["realname"],
-            url=user["url"],
-            description=f"User Profile for {user['name']}",
+            description=f"User profile for **{user['name']}**",
             color=config["COLORS"]["SUCCESS"],
         )
 
@@ -281,10 +273,19 @@ class LastFM(commands.Cog):
             name="User Registered", value=f"<t:{user['registered']['unixtime']}:R>"
         )
 
+        go_to_profile = discord.ui.Button(
+            label="Go to Profile",
+            url=user["url"],
+            style=discord.ButtonStyle.link,
+        )
+
+        view = discord.ui.View()
+        view.add_item(go_to_profile)
+
         if user["image"]:
             embed.set_thumbnail(url=user["image"][3]["#text"])
 
-        await ctx.respond(embed=embed)
+        await ctx.respond(embed=embed, view=view)
 
     @_lastfm.command(
         name="topartists",
