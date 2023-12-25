@@ -6,6 +6,7 @@ import os
 import datetime
 import aiohttp
 import ast
+import time
 
 from discord.ext import commands
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
@@ -111,10 +112,18 @@ class Developer(commands.Cog):
         }
 
         try:
+            start_time = time.perf_counter()
             exec(compile(parsed, filename="<ast>", mode="exec"), env)
             result = await eval(f"{fn_name}()", env)
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
 
-            await ctx.respond(f"```py\n{result}\n```" if result else "\✅")
+            embed = discord.Embed(
+                description=f"```py\n{result}\n```",
+                color=config["COLORS"]["DEFAULT"],
+            )
+            embed.add_field(name="Execution Time", value=f"{execution_time:.4f}s")
+            await ctx.respond(embed=embed)
         except Exception as e:
             await ctx.respond(f"```py\n{e}\n```")
 
