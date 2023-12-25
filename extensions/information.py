@@ -7,7 +7,6 @@ import pytz
 import aiosqlite
 import platform
 
-from kick_py import Kick
 from discord.ext import commands, tasks
 from colorthief import ColorThief
 from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
@@ -702,78 +701,6 @@ class Information(commands.Cog):
         )
         await ctx.respond(embed=embed)
 
-    @discord.slash_command(
-        name="kickchannel",
-        description="Get information about a Kick.com channel.",
-    )
-    async def kick_channel(
-        self,
-        ctx: discord.ApplicationContext,
-        username: str = discord.Option(
-            description="The username to get the channel of", required=True
-        ),
-    ):
-        kick = Kick()
-        channel_data = kick.get_channel(username)
-        user_info = channel_data.get("user", {})
-        recent_categories = channel_data.get("recent_categories", [])[:5]
-
-        recent_categories_list = "\n".join(
-            f"- {category['category']['icon']} {category['name']} ({category['viewers']})"
-            for category in recent_categories
-        )
-
-        bio = user_info.get("bio", "No bio available.")
-        embed_description = f"{bio}\n\n**Recent Categories:**\n{recent_categories_list}"
-
-        embed = discord.Embed(
-            description=embed_description,
-            color=config["COLORS"]["INVISIBLE"],
-        )
-
-        if profile_pic := user_info.get("profile_pic"):
-            embed.set_author(
-                name=user_info.get("username", "Unknown"),
-                url=f"https://kick.com/{user_info.get('username', 'user')}",
-                icon_url=profile_pic,
-            )
-            embed.set_thumbnail(url=profile_pic)
-
-        if email_verified_at := user_info.get("email_verified_at"):
-            created_at_timestamp = datetime.datetime.fromisoformat(
-                email_verified_at.rstrip("Z")
-            ).timestamp()
-            embed.add_field(name="Created", value=f"<t:{int(created_at_timestamp)}:R>")
-
-        followers_count = channel_data.get("followers_count", 0)
-        embed.add_field(name="Followers", value=followers_count)
-
-        livestream_info = channel_data.get("livestream")
-        if livestream_info:
-            start_time = datetime.datetime.strptime(
-                livestream_info["start_time"], "%Y-%m-%d %H:%M:%S"
-            ).timestamp()
-            viewers = livestream_info.get("viewer_count", 0)
-            if thumbnail_url := livestream_info.get("thumbnail", {}).get("url"):
-                embed.set_image(url=thumbnail_url)
-
-            embed_description += (
-                f"\n\n**LIVE [👁️ {viewers}]**\nStarted <t:{int(start_time)}:R>\n{livestream_info['session_title'][:50]}")  # fmt: skip
-            embed.description = embed_description
-        else:
-            embed.add_field(name="Live", value="No")
-
-        view = discord.ui.View()
-        watch_button_url = f"https://kick.com/{user_info.get('username', 'user')}"
-        watch_button = discord.ui.Button(
-            style=discord.ButtonStyle.link,
-            label="Watch",
-            url=watch_button_url,
-        )
-
-        if livestream_info:
-            view.add_item(watch_button)
-        await ctx.respond(embed=embed, view=view)
 
     @discord.slash_command(
         name="about", description="Get some useful (or not) information about the bot."
