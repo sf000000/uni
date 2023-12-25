@@ -503,10 +503,10 @@ class Server(commands.Cog):
 
         embed = discord.Embed(title=ctx.guild.name, color=config["COLORS"]["DEFAULT"])
         embed.description = (
-            f"\👥 {total_members} members (\🤖 {bot_count} bots) | \🟢 {online_count} online\n\n"
+            f"👥 {total_members} members (🤖 {bot_count} bots) | 🟢 {online_count} online\n\n"
             f"**Owner:** {owner}\n**Created:** {created}\n**Security:** {security}\n\n"
-            f"\💬 {text_channels} channels | \🔈 {voice_channels} voice channels | "
-            f"\👤 {roles} roles | \🐸 {emojis} emotes"
+            f"💬 {text_channels} channels | 🔈 {voice_channels} voice channels | "
+            f"👤 {roles} roles | 🐸 {emojis} emotes"
         )
         embed.set_thumbnail(url=ctx.guild.icon.url)
 
@@ -529,13 +529,13 @@ class Server(commands.Cog):
 
         status = str(user.status).title()
         if status == "Dnd":
-            status = "\🔴 DND"
+            status = "🔴 DND"
         if status == "Idle":
-            status = "\🌙 Idle"
+            status = "🌙 Idle"
         if status == "Offline":
-            status = "\⚫ Offline"
+            status = "⚫ Offline"
         if status == "Online":
-            status = "\🟢 Online"
+            status = "🟢 Online"
 
         created = f"<t:{int(user.created_at.timestamp())}:R>"
         joined = f"<t:{int(user.joined_at.timestamp())}:R>"
@@ -595,17 +595,17 @@ class Server(commands.Cog):
             bans_count += 1
 
         embed = discord.Embed(
-            description=f"\👥 **{len(members)}** Members | \💚 **{len(online)}** Online | \🤖 **{len(bots)}** Bots",
+            description=f"👥 **{len(members)}** Members | 💚 **{len(online)}** Online | 🤖 **{len(bots)}** Bots",
             color=config["COLORS"]["DEFAULT"],
         )
         embed.add_field(
             name="New Members",
-            value=f"\👥 Today: **{len(day_joined)}**\n\👥 This Week: **{len(week_joined)}**",
+            value=f"👥 Today: **{len(day_joined)}**\n👥 This Week: **{len(week_joined)}**",
             inline=False,
         )
         embed.add_field(
             name="Bans and Boosts",
-            value=f"\🔨 Bans: **{bans_count}**\n\🚀 Boosts: **{ctx.guild.premium_subscription_count}**",
+            value=f"🔨 Bans: **{bans_count}**\n🚀 Boosts: **{ctx.guild.premium_subscription_count}**",
             inline=False,
         )
         if ctx.guild.splash:
