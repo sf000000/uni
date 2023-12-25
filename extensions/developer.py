@@ -60,6 +60,29 @@ class Developer(commands.Cog):
     )
 
     @_dev.command(
+        name="bye",
+        description="Remove the bot from a guild.",
+    )
+    @commands.is_owner()
+    async def _bye(
+        self,
+        ctx: discord.ApplicationContext,
+        guild_id: discord.Option(
+            str, "The ID of the guild to remove the bot from.", required=True
+        ),
+    ):
+        guild = self.bot.get_guild(int(guild_id))
+        if not guild:
+            return await ctx.respond(
+                "Could not find a guild with that ID.", ephemeral=True
+            )
+        await guild.leave()
+        await ctx.respond(
+            f"Successfully left the guild **{guild.name}** ({guild.id}).",
+            ephemeral=True,
+        )
+
+    @_dev.command(
         name="eval",
         description="Evaluates Python code.",
     )
