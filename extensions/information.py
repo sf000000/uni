@@ -701,7 +701,6 @@ class Information(commands.Cog):
         )
         await ctx.respond(embed=embed)
 
-
     @discord.slash_command(
         name="about", description="Get some useful (or not) information about the bot."
     )

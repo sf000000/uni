@@ -57,7 +57,7 @@ class Developer(commands.Cog):
                 self.insert_returns(body[-1].orelse)
 
     _dev = discord.commands.SlashCommandGroup(
-        name="developer", description="Developer related commands."
+        name="dev", description="Developer related commands."
     )
 
     @_dev.command(
@@ -530,6 +530,24 @@ class Developer(commands.Cog):
             )
         except Exception as e:
             await ctx.respond(f"Error occurred: {e}")
+
+    @_dev.command(
+        name="shards",
+        description="Gets the current shards.",
+    )
+    @commands.is_owner()
+    async def _shards(self, ctx: discord.ApplicationContext):
+        shard_lines = [
+            f"Shard {shard_id} - {shard.latency * 1000:.2f}ms"
+            for shard_id, shard in self.bot.shards.items()
+        ]
+
+        await ctx.respond(
+            embed=discord.Embed(
+                description="\n".join(shard_lines),
+                color=config["COLORS"]["DEFAULT"],
+            )
+        )
 
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
