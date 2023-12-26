@@ -106,7 +106,7 @@ class Information(commands.Cog):
                     return await ctx.respond(
                         "Could not create sticker.", ephemeral=True
                     )
-                await ctx.respond(f"Created sticker `{created_sticker.name}`. \🎉")
+                await ctx.respond(f"Created sticker `{created_sticker.name}`. 🎉")
 
     @_sticker.command(
         name="remove",
@@ -124,7 +124,7 @@ class Information(commands.Cog):
         if not sticker:
             return await ctx.respond("Sticker not found.", ephemeral=True)
         await sticker.delete()
-        await ctx.respond(f"Deleted sticker `{sticker.name}`. \🗑️")
+        await ctx.respond(f"Deleted sticker `{sticker.name}`. 🗑️")
 
     @_sticker.command(
         name="tag",
@@ -152,7 +152,7 @@ class Information(commands.Cog):
             if len(new_name) <= 30:
                 await sticker.edit(name=new_name)
                 completed += 1
-        await ctx.respond(f"Tagged {completed} stickers. \🏷️")
+        await ctx.respond(f"Tagged {completed} stickers. 🏷️")
 
     _timezone = discord.commands.SlashCommandGroup(
         name="timezone",
