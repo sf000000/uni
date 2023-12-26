@@ -171,11 +171,16 @@ class Misc(commands.Cog):
             ],
         ]
 
-    @discord.slash_command(
+    _movie = discord.commands.SlashCommandGroup(
         name="movie",
+        description="Movie related commands",
+    )
+
+    @_movie.command(
+        name="watch",
         description="Get a link to watch a movie.",
     )
-    async def _movie(
+    async def _watch(
         self,
         ctx: discord.ApplicationContext,
         movie=discord.Option(
