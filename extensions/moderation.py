@@ -1494,6 +1494,134 @@ class Moderation(commands.Cog):
                 f"Failed to {'enable' if enabled else 'disable'}: {e}", ephemeral=True
             )
 
+    _virustotal = discord.commands.SlashCommandGroup(
+        name="virustotal", description="Commands related to VirusTotal"
+    )
+
+    @_virustotal.command(
+        name="above",
+        description="Scan the above message's file with VirusTotal",
+    )
+    @commands.guild_only()
+    async def above(self, ctx: discord.ApplicationContext):
+        messages = [msg async for msg in ctx.channel.history(limit=1)]
+        message = messages[0] if messages else None
+
+        if not message or not message.attachments:
+            return await ctx.respond("No attachments found.")
+
+        if len(message.attachments) > 1:
+            return await ctx.respond("Multiple attachments found.")
+
+        attachment = message.attachments[0]
+
+        await ctx.defer()
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                response = await session.post(
+                    "https://www.virustotal.com/api/v3/files",
+                    headers={"x-apikey": config["VIRUSTOTAL_API_KEY"]},
+                    data={"file": await attachment.read()},
+                )
+
+                if response.status == 200:
+                    data = await response.json()
+                    await self.handle_successful_scan(data, attachment, ctx)
+                else:
+                    await ctx.respond(
+                        f"Failed to upload file to VirusTotal: {response.status}",
+                        ephemeral=True,
+                    )
+
+        except Exception as e:
+            await ctx.respond(
+                f"Failed to upload file to VirusTotal: {e}", ephemeral=True
+            )
+
+    async def handle_successful_scan(self, data, attachment, ctx):
+        analysis_id = data["data"]["id"]
+        analysis = await self.get_analysis(analysis_id)
+
+        if analysis:
+            status = analysis["data"]["attributes"]["status"]
+            completed_at = analysis["data"]["attributes"]["date"]
+
+            embed = discord.Embed(
+                description=f"🔍 Analysis for **{attachment.filename}** {status} <t:{int(completed_at)}:R>",
+                color=config["COLORS"]["DEFAULT"],
+            )
+            embed.add_field(
+                name="Scanned By",
+                value=f"{len(analysis['data']['attributes']['stats'])} engines",
+            )
+
+            embed.add_field(
+                name="Malicious",
+                value=analysis["data"]["attributes"]["stats"].get("malicious", 0),
+            )
+
+            embed.add_field(
+                name="Safety Score",
+                value=f"{self.calculate_file_safety_score(analysis):.2f}%",
+            )
+
+            embed.add_field(
+                name="File Size",
+                value=f"{round(attachment.size / 1000000, 2)} MB",
+            )
+
+            detailed_view_button = discord.ui.Button(
+                style=discord.ButtonStyle.url,
+                label="Detailed View",
+                url=f"https://www.virustotal.com/gui/file/{analysis['meta']['file_info']['sha256']}",
+            )
+            safety_score_info_button = discord.ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="How does Uni calculate the safety score?",
+                custom_id="safety_score_info",
+                emoji="🛡️",
+            )
+            safety_score_info_button.callback = self.safety_score_info_callback
+
+            view = discord.ui.View()
+            view.add_item(detailed_view_button)
+            view.add_item(safety_score_info_button)
+
+            await ctx.respond(embed=embed, view=view)
+
+    async def safety_score_info_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "The safety score is calculated based on the number of engines that detected the file as malicious, suspicious, or undetected. "
+            "The score is calculated as follows: ```(undetected - malicious - suspicious) / total) * 100```",
+            ephemeral=True,
+        )
+
+    async def get_analysis(self, analysis_id: str):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
+                    headers={
+                        "x-apikey": config["VIRUSTOTAL_API_KEY"],
+                    },
+                ) as response:
+                    return await response.json() if response.status == 200 else None
+        except Exception as e:
+            print(f"Failed to get analysis: {e}")
+            return None
+
+    def calculate_file_safety_score(self, virus_total_response):
+        stats = virus_total_response["data"]["attributes"]["stats"]
+        total = sum(stats.values())
+        undetected = stats.get("undetected", 0)
+        malicious = stats.get("malicious", 0)
+        suspicious = stats.get("suspicious", 0)
+
+        if total > 0:
+            score = ((undetected - malicious - suspicious) / total) * 100
+            return max(min(score, 100), 0)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
