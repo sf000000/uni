@@ -6,6 +6,7 @@ import datetime
 import pytz
 import aiosqlite
 import platform
+import psutil
 
 from discord.ext import commands, tasks
 from colorthief import ColorThief
@@ -726,18 +727,23 @@ class Information(commands.Cog):
             .add_field(name="Uptime", value=str(uptime).split(".")[0])
             .add_field(name="Commands Used", value=total_commands_used)
             .add_field(name="Python", value=f"{platform.python_version()}")
-            .add_field(name="Pycord", value=f"{discord.__version__}")
+            .add_field(
+                name="Memory Usage",
+                value=f"{round(psutil.Process().memory_info().rss / 1024 ** 2)} / {round(psutil.virtual_memory().total / 1024 ** 2)} MB",
+            )
             .set_thumbnail(url=bot_avatar_url)
         )
 
-        source_code_button = discord.ui.Button(
-            style=discord.ButtonStyle.link,
-            label="Source Code",
-            url="https://github.com/notjawad/uni",
-        )
-        view = discord.ui.View(timeout=60).add_item(source_code_button)
+        await ctx.respond(embed=embed)
 
-        await ctx.respond(embed=embed, view=view)
+    @discord.slash_command(
+        name="vote",
+        description="Vote for the bot on top.gg.",
+    )
+    async def vote(self, ctx: discord.ApplicationContext):
+        await ctx.respond(
+            "Vote for Uni on top.gg: <https://top.gg/bot/1181586708865744926/vote>"
+        )
 
     @tasks.loop(minutes=1)
     async def check_reminders(self):
