@@ -79,6 +79,54 @@ class RefreshButton(discord.ui.Button):
         )
 
 
+class PlaylistButton(discord.ui.Button):
+    def __init__(self, playlists, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.playlists = playlists
+        self.current_index = 0
+
+    async def update_embed(self, interaction: discord.Interaction):
+        playlist = self.playlists[self.current_index]
+        playlist_tracks = sp.playlist_tracks(playlist["id"])
+        tracks = playlist_tracks["items"][:5]
+
+        embed = discord.Embed(
+            title=playlist["name"],
+            description=playlist["description"]
+            + "\n\n"
+            + "\n".join(
+                f"{index + 1}. [{track['track']['name']}]({track['track']['external_urls']['spotify']})"
+                for index, track in enumerate(tracks)
+            ),
+            color=config["COLORS"]["SUCCESS"],
+        )
+        embed.add_field(
+            name="Total Tracks",
+            value=playlist_tracks["total"],
+            inline=False,
+        )
+
+        open_in_spotify = discord.ui.Button(
+            label="Open in Spotify",
+            url=playlist["external_urls"]["spotify"],
+            style=discord.ButtonStyle.link,
+        )
+
+        self.view.clear_items()
+        self.view.add_item(self)
+        self.view.add_item(open_in_spotify)
+
+        if playlist["images"]:
+            embed.set_thumbnail(url=playlist["images"][0]["url"])
+        await interaction.response.edit_message(embed=embed, view=self.view)
+
+
+class NextButton(PlaylistButton):
+    async def callback(self, interaction: discord.Interaction):
+        self.current_index = (self.current_index + 1) % len(self.playlists)
+        await self.update_embed(interaction)
+
+
 class LastFM(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
@@ -673,6 +721,89 @@ class LastFM(commands.Cog):
         )
 
         await ctx.respond(embed=embed)
+
+    @_spotify.command(
+        name="whois",
+        description="Get information about a Spotify user.",
+    )
+    async def spotify_whois(
+        self,
+        ctx: discord.ApplicationContext,
+        username: discord.Option(
+            str, description="The username to search for.", required=True
+        ),
+    ):
+        user = sp.user(username)
+        playlists = sp.user_playlists(username)
+        total_playlists = playlists["total"]
+
+        embed = discord.Embed(
+            color=config["COLORS"]["SUCCESS"],
+        )
+        embed.set_thumbnail(url=user["images"][0]["url"])
+        embed.add_field(name="ID", value=user["id"])
+        embed.add_field(name="Followers", value=user["followers"]["total"])
+        embed.add_field(name="Playlists", value=total_playlists)
+
+        if user["images"]:
+            embed.set_thumbnail(url=user["images"][1]["url"])
+
+        open_in_spotify = discord.ui.Button(
+            label="Open in Spotify",
+            url=user["external_urls"]["spotify"],
+            style=discord.ButtonStyle.link,
+        )
+
+        view = discord.ui.View()
+        view.add_item(open_in_spotify)
+
+        await ctx.respond(embed=embed, view=view)
+
+    @_spotify.command(name="featured", description="Get Spotify's featured playlists.")
+    async def spotify_featured(self, ctx: discord.ApplicationContext):
+        playlists = sp.featured_playlists()["playlists"]["items"]
+
+        playlist_tracks = sp.playlist_tracks(playlists[0]["id"])
+        tracks = playlist_tracks["items"][:5]
+
+        next_button = NextButton(
+            playlists, label="Next", style=discord.ButtonStyle.primary
+        )
+
+        view = discord.ui.View()
+        view.add_item(next_button)
+
+        if playlists:
+            initial_playlist = playlists[0]
+            embed = discord.Embed(
+                title=initial_playlist["name"],
+                description=initial_playlist["description"]
+                + "\n\n"
+                + "\n".join(
+                    f"{index + 1}. [{track['track']['name']}]({track['track']['external_urls']['spotify']})"
+                    for index, track in enumerate(tracks)
+                ),
+                color=config["COLORS"]["SUCCESS"],
+            )
+            embed.add_field(
+                name="Total Tracks",
+                value=f"{playlist_tracks['total']} tracks",
+                inline=False,
+            )
+            if initial_playlist["images"]:
+                embed.set_thumbnail(url=initial_playlist["images"][0]["url"])
+
+            open_in_spotify = discord.ui.Button(
+                label="Open in Spotify",
+                url=initial_playlist["external_urls"]["spotify"],
+                style=discord.ButtonStyle.link,
+            )
+
+            view.add_item(open_in_spotify)
+
+            await ctx.respond(embed=embed, view=view)
+        else:
+            await ctx.respond(content="No featured playlists found!", ephemeral=True)
 
     @discord.commands.slash_command(
         name="lyrics",
