@@ -8,6 +8,7 @@ import lyricsgenius
 
 from discord.ext import commands
 from spotipy import SpotifyClientCredentials
+from helpers.utils import create_progress_bar
 
 
 def load_config():
@@ -595,6 +596,83 @@ class LastFM(commands.Cog):
 
         else:
             return await ctx.respond("You are not currently listening to Spotify.")
+
+    @_spotify.command(
+        name="features",
+        description="Gets audio features for the song you're currently listening to.",
+    )
+    async def spotify_features(self, ctx: discord.ApplicationContext):
+        spotify_activity = next(
+            (
+                activity
+                for activity in ctx.author.activities
+                if isinstance(activity, discord.Spotify)
+            ),
+            None,
+        )
+
+        if not spotify_activity:
+            return await ctx.respond("You are not currently listening to Spotify.")
+
+        results = sp.audio_features(spotify_activity.track_id)
+        features = results[0]
+
+        embed = discord.Embed(
+            title="Audio Features",
+            color=config["COLORS"]["SUCCESS"],
+        )
+
+        embed.add_field(
+            name="Danceability",
+            value=f"`{create_progress_bar(features['danceability'])}` {round(features['danceability'], 2)}",
+        )
+        embed.add_field(
+            name="Energy",
+            value=f"`{create_progress_bar(features['energy'])}` {round(features['energy'], 2)}",
+        )
+
+        embed.add_field(
+            name="Speechiness",
+            value=f"`{create_progress_bar(features['speechiness'])}` {round(features['speechiness'], 2)}",
+        )
+        embed.add_field(
+            name="Acousticness",
+            value=f"`{create_progress_bar(features['acousticness'])}` {round(features['acousticness'], 2)}",
+        )
+        embed.add_field(
+            name="Instrumentalness",
+            value=f"`{create_progress_bar(features['instrumentalness'])}` {round(features['instrumentalness'], 2)}",
+        )
+        embed.add_field(
+            name="Liveness",
+            value=f"`{create_progress_bar(features['liveness'])}` {round(features['liveness'], 2)}",
+        )
+        embed.add_field(
+            name="Valence",
+            value=f"`{create_progress_bar(features['valence'])}` {round(features['valence'], 2)}",
+        )
+        embed.add_field(
+            name="Tempo",
+            value=features["tempo"],
+        )
+        embed.add_field(
+            name="Time Signature",
+            value=features["time_signature"],
+        )
+        embed.add_field(
+            name="Key",
+            value=features["key"],
+        )
+        embed.add_field(
+            name="Loudness",
+            value=features["loudness"],
+        )
+        embed.add_field(
+            name="Mode",
+            value=features["mode"],
+        )
+
+        await ctx.respond(embed=embed)
 
     @discord.commands.slash_command(
         name="lyrics",
