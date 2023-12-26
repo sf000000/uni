@@ -1541,8 +1541,23 @@ class Moderation(commands.Cog):
             status = analysis["data"]["attributes"]["status"]
             completed_at = analysis["data"]["attributes"]["date"]
 
+            malicious_engines = [
+                f"{engine_name}: {engine_data['result']}"
+                for engine_name, engine_data in analysis["data"]["attributes"][
+                    "results"
+                ].items()
+                if engine_data["category"] == "malicious"
+            ]
+
+            malicious_list = "\n".join(
+                [
+                    f"{i+1}. <:malicious:1189267739718721617> {me}"
+                    for i, me in enumerate(malicious_engines[:5])
+                ]
+            )
+
             embed = discord.Embed(
-                description=f"🔍 Analysis for **{attachment.filename}** {status} <t:{int(completed_at)}:R>",
+                description=f"🔍 Analysis for **{attachment.filename}** {status} <t:{int(completed_at)}:R>\n\n{malicious_list}",
                 color=config["COLORS"]["DEFAULT"],
             )
             embed.add_field(
@@ -1572,7 +1587,7 @@ class Moderation(commands.Cog):
             )
             safety_score_info_button = discord.ui.Button(
                 style=discord.ButtonStyle.secondary,
-                label="How does Uni calculate the safety score?",
+                label="What is Safety Score?",
                 custom_id="safety_score_info",
                 emoji="🛡️",
             )
