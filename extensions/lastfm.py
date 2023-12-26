@@ -26,6 +26,58 @@ sp = spotipy.Spotify(
 )
 
 
+class RefreshButton(discord.ui.Button):
+    def __init__(self, tracks, current_track: discord.Spotify, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tracks = tracks
+        self.current_track = current_track
+
+    async def callback(self, interaction):
+        if not self.tracks:
+            self.disabled = True  # Disable the button if no tracks are left
+            return await interaction.response.edit_message(view=self.view)
+
+        track = self.tracks.pop(0)
+
+        embed = discord.Embed(
+            color=config["COLORS"]["SUCCESS"],
+        )
+        embed.add_field(
+            name="Song",
+            value=track["name"],
+        )
+        embed.add_field(
+            name="Artist",
+            value=track["artists"][0]["name"],
+        )
+        embed.add_field(
+            name="Album",
+            value=track["album"]["name"],
+        )
+        embed.add_field(
+            name="Duration",
+            value=f"{track['duration_ms'] // 60000}:{(track['duration_ms'] // 1000) % 60:02}",
+        )
+
+        embed.set_thumbnail(url=track["album"]["images"][0]["url"])
+
+        open_in_spotify = discord.ui.Button(
+            label="Open in Spotify",
+            url=track["external_urls"]["spotify"],
+            style=discord.ButtonStyle.link,
+        )
+
+        self.view.clear_items()
+        self.view.add_item(self)
+        self.view.add_item(open_in_spotify)
+
+        await interaction.response.edit_message(
+            content=f"Recommended song based on **{self.current_track.title}** by **{self.current_track.artists[0]}**",
+            embed=embed,
+            view=self.view,
+        )
+
+
 class LastFM(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
@@ -473,6 +525,76 @@ class LastFM(commands.Cog):
         embed.add_field(name="Duration", value=duration_formatted)
 
         await ctx.respond(embed=embed)
+
+    @_spotify.command(
+        name="recommend",
+        description="Recommends you a song based on what you're currently listening to.",
+    )
+    async def spotify_recommend(self, ctx: discord.ApplicationContext):
+        if spotify_activity := next(
+            (
+                activity
+                for activity in ctx.author.activities
+                if isinstance(activity, discord.Spotify)
+            ),
+            None,
+        ):
+            await ctx.defer()
+
+            results = sp.recommendations(
+                seed_tracks=[spotify_activity.track_id], limit=20
+            )
+
+            tracks = results["tracks"]
+            refresh_button = RefreshButton(
+                tracks=tracks,
+                current_track=spotify_activity,
+                label="Refresh",
+                style=discord.ButtonStyle.primary,
+            )
+
+            initial_track = tracks.pop(0)
+
+            open_in_spotify = discord.ui.Button(
+                label="Open in Spotify",
+                url=initial_track["external_urls"]["spotify"],
+                style=discord.ButtonStyle.link,
+            )
+
+            view = discord.ui.View()
+            view.add_item(refresh_button)
+            view.add_item(open_in_spotify)
+
+            embed = discord.Embed(
+                color=config["COLORS"]["SUCCESS"],
+            )
+            embed.add_field(
+                name="Song",
+                value=initial_track["name"],
+            )
+            embed.add_field(
+                name="Artist",
+                value=initial_track["artists"][0]["name"],
+            )
+            embed.add_field(
+                name="Album",
+                value=initial_track["album"]["name"],
+            )
+            embed.add_field(
+                name="Duration",
+                value=f"{initial_track['duration_ms'] // 60000}:{(initial_track['duration_ms'] // 1000) % 60:02}",
+            )
+
+            embed.set_thumbnail(url=initial_track["album"]["images"][0]["url"])
+
+            await ctx.respond(
+                content=f"Recommended song based on **{spotify_activity.title}** by **{spotify_activity.artists[0]}**",
+                embed=embed,
+                view=view,
+            )
+
+        else:
+            return await ctx.respond("You are not currently listening to Spotify.")
 
     @discord.commands.slash_command(
         name="lyrics",
