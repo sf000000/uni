@@ -148,7 +148,7 @@ class Minecraft(commands.Cog):
             embed.add_field(name="🌍 IP", value=f"```{ip}```", inline=False)
             embed.add_field(name="🔌 Port", value=f"```{port}```", inline=False)
             embed.add_field(
-                name="📅 Updated At",
+                name="📅 Updated",
                 value=f"<t:{int(datetime.datetime.now().timestamp())}:R>",
                 inline=False,
             )
