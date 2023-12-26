@@ -88,14 +88,15 @@ class Developer(commands.Cog):
                 self.insert_returns(body[-1].orelse)
 
     _dev = discord.commands.SlashCommandGroup(
-        name="dev", description="Developer related commands."
+        name="dev",
+        description="Developer related commands.",
+        checks=[commands.is_owner().predicate],
     )
 
     @_dev.command(
         name="bye",
         description="Remove the bot from a guild.",
     )
-    @commands.is_owner()
     async def _bye(
         self,
         ctx: discord.ApplicationContext,
@@ -118,7 +119,6 @@ class Developer(commands.Cog):
         name="eval",
         description="Evaluates Python code.",
     )
-    @commands.is_owner()
     async def _eval(
         self,
         ctx: discord.ApplicationContext,
@@ -162,7 +162,6 @@ class Developer(commands.Cog):
         name="rawembed",
         description="Sends an embed from a message as raw JSON.",
     )
-    @commands.is_owner()
     async def _rawembed(
         self,
         ctx: discord.ApplicationContext,
@@ -241,7 +240,6 @@ class Developer(commands.Cog):
             await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(name="execute", description="Executes a SQL query.")
-    @commands.is_owner()
     async def execute(
         self,
         ctx: discord.ApplicationContext,
@@ -256,7 +254,6 @@ class Developer(commands.Cog):
             return await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(name="whitelist", description="Whitelists a guild to use the bot.")
-    @commands.is_owner()
     async def whitelist(
         self,
         ctx: discord.ApplicationContext,
@@ -297,7 +294,6 @@ class Developer(commands.Cog):
     @_dev.command(
         name="unwhitelist", description="Unwhitelists a guild from using the bot."
     )
-    @commands.is_owner()
     async def unwhitelist(
         self,
         ctx: discord.ApplicationContext,
@@ -339,7 +335,6 @@ class Developer(commands.Cog):
         name="status",
         description="Set bot's playing status.",
     )
-    @commands.is_owner()
     async def _status(
         self,
         ctx: discord.ApplicationContext,
@@ -353,7 +348,6 @@ class Developer(commands.Cog):
         name="reload",
         description="Reloads an extension.",
     )
-    @commands.is_owner()
     async def _reload(
         self,
         ctx: discord.ApplicationContext,
@@ -366,7 +360,6 @@ class Developer(commands.Cog):
         name="load",
         description="Loads an extension.",
     )
-    @commands.is_owner()
     async def _load(
         self,
         ctx: discord.ApplicationContext,
@@ -379,7 +372,6 @@ class Developer(commands.Cog):
         name="unload",
         description="Unloads an extension.",
     )
-    @commands.is_owner()
     async def _unload(
         self,
         ctx: discord.ApplicationContext,
@@ -392,7 +384,6 @@ class Developer(commands.Cog):
         name="reloadall",
         description="Reloads all extensions.",
     )
-    @commands.is_owner()
     async def _reloadall(self, ctx: discord.ApplicationContext):
         reloaded_extensions = 0
         for filename in os.listdir("./extensions"):
@@ -569,7 +560,6 @@ class Developer(commands.Cog):
         name="shards",
         description="Gets the current shards.",
     )
-    @commands.is_owner()
     async def _shards(self, ctx: discord.ApplicationContext):
         shard_lines = [
             f"Shard {shard_id} - {shard.latency * 1000:.2f}ms"
