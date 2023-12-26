@@ -7,6 +7,7 @@ import datetime
 import aiohttp
 import ast
 import time
+import re
 
 from discord.ext import commands
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
@@ -16,6 +17,30 @@ def load_config():
     with open("config.yml", "r", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     return config
+
+
+commit_emojis = {
+    "feat": "✨",
+    "fix": "🐛",
+    "docs": "📚",
+    "style": "💅",
+    "refactor": "🔨",
+    "test": "🧪",
+    "chore": "🧹",
+}
+
+
+def replace_commit_type_with_emoji(commit_msg):
+    commit_msg = commit_msg.lstrip("* ").strip()
+
+    if match := re.match(
+        r"(feat|fix|docs|style|refactor|test|chore)\((.*?)\):(.*)", commit_msg
+    ):
+        commit_type = match[1]
+        if commit_type in commit_emojis:
+            return f"{commit_emojis[commit_type]}: ({match[2]}):{match[3]}"
+
+    return commit_msg
 
 
 config = load_config()
@@ -385,17 +410,20 @@ class Developer(commands.Cog):
         if isinstance(commit_info, str):
             await ctx.respond(commit_info)
         else:
-            embed = discord.Embed(
-                description=f"Commit message: {commit_info['message']}",
-                color=config["COLORS"]["DEFAULT"],
-            )
+            embed = discord.Embed(color=config["COLORS"]["DEFAULT"])
+            commit_messages = commit_info["message"].split("\n")
+            emoji_commit_messages = [
+                replace_commit_type_with_emoji(msg) for msg in commit_messages
+            ]
+            full_modified_commit_msg = "\n".join(emoji_commit_messages)
+
+            embed.description = full_modified_commit_msg
             embed.add_field(
-                name="Commit",
-                value=f"[{commit_info['id'][:7]}]({commit_info['url']})",
+                name="Version", value=f"[{commit_info['id'][:7]}]({commit_info['url']})"
             )
             embed.add_field(name="Author", value=commit_info["author"])
             embed.add_field(
-                name="Date", value=iso_to_discord_timestamp(commit_info["date"])
+                name="Time", value=iso_to_discord_timestamp(commit_info["date"])
             )
             await ctx.respond(embed=embed)
 
