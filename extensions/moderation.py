@@ -1517,27 +1517,21 @@ class Moderation(commands.Cog):
 
         await ctx.defer()
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                response = await session.post(
-                    "https://www.virustotal.com/api/v3/files",
-                    headers={"x-apikey": config["VIRUSTOTAL_API_KEY"]},
-                    data={"file": await attachment.read()},
-                )
-
-                if response.status == 200:
-                    data = await response.json()
-                    await self.handle_successful_scan(data, attachment, ctx)
-                else:
-                    await ctx.respond(
-                        f"Failed to upload file to VirusTotal: {response.status}",
-                        ephemeral=True,
-                    )
-
-        except Exception as e:
-            await ctx.respond(
-                f"Failed to upload file to VirusTotal: {e}", ephemeral=True
+        async with aiohttp.ClientSession() as session:
+            response = await session.post(
+                "https://www.virustotal.com/api/v3/files",
+                headers={"x-apikey": config["VIRUSTOTAL_API_KEY"]},
+                data={"file": await attachment.read()},
             )
+
+            if response.status == 200:
+                data = await response.json()
+                await self.handle_successful_scan(data, attachment, ctx)
+            else:
+                await ctx.respond(
+                    f"Failed to upload file to VirusTotal: {response.status}",
+                    ephemeral=True,
+                )
 
     async def handle_successful_scan(self, data, attachment, ctx):
         analysis_id = data["data"]["id"]
@@ -1592,8 +1586,11 @@ class Moderation(commands.Cog):
 
     async def safety_score_info_callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            "The safety score is calculated based on the number of engines that detected the file as malicious, suspicious, or undetected. "
-            "The score is calculated as follows: ```(undetected - malicious - suspicious) / total) * 100```",
+            "Here's how the **Safety Score** is calculated:\n\n"
+            "**1. Examination:** Uni looks at all the antivirus engines that checked the file and notes how many marked it as **safe**, **malicious**, or **suspicious**.\n"
+            "**2. Scoring:** The safety score starts at 100% and decreases if any engines find the file malicious or suspicious.\n"
+            "**3. Result:** Essentially, the more engines that say the file is safe, the higher the safety score!\n\n"
+            "So, a file not flagged by any engines will have a higher score, indicating it's generally considered safe by the antivirus community!",
             ephemeral=True,
         )
 
@@ -1614,13 +1611,16 @@ class Moderation(commands.Cog):
     def calculate_file_safety_score(self, virus_total_response):
         stats = virus_total_response["data"]["attributes"]["stats"]
         total = sum(stats.values())
-        undetected = stats.get("undetected", 0)
         malicious = stats.get("malicious", 0)
         suspicious = stats.get("suspicious", 0)
 
+        detections = malicious + suspicious
+
         if total > 0:
-            score = ((undetected - malicious - suspicious) / total) * 100
-            return max(min(score, 100), 0)
+            safety_score = ((total - detections) / total) * 100
+            return max(min(safety_score, 100), 0)
+        else:
+            return 0
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
