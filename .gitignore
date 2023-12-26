@@ -236,3 +236,4 @@ start.bat
 application.yml
 Lavalink.jar
 chromedriver
+logs/
