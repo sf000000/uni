@@ -48,3 +48,8 @@ async def is_premium(member: discord.Member, conn: aiosqlite.Connection) -> bool
         "SELECT * FROM premium_users WHERE user_id = ?", (member.id,)
     ) as cursor:
         return await cursor.fetchone() is not None
+
+
+def create_progress_bar(value, max_blocks=10, full_block="█", empty_block="░"):
+    filled_blocks = int(value * max_blocks)
+    return full_block * filled_blocks + empty_block * (max_blocks - filled_blocks)
