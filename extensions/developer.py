@@ -37,8 +37,14 @@ def replace_commit_type_with_emoji(commit_msg):
         r"(feat|fix|docs|style|refactor|test|chore)\((.*?)\):(.*)", commit_msg
     ):
         commit_type = match[1]
+        extension_name = match[2]
+        description = match[3]
+
+        if extension_name.endswith(".py"):
+            extension_name = f"**{extension_name}**"
+
         if commit_type in commit_emojis:
-            return f"{commit_emojis[commit_type]}: ({match[2]}):{match[3]}"
+            return f"{commit_emojis[commit_type]}: ({extension_name}):{description}"
 
     return commit_msg
 
