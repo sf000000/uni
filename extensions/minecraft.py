@@ -126,6 +126,39 @@ class Minecraft(commands.Cog):
             )
         )
 
+    @_server.command(
+        name="remove",
+        description="Remove server status message.",
+    )
+    @commands.has_permissions(manage_guild=True)
+    async def _remove_server_status(self, ctx: discord.ApplicationContext):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT 1 FROM minecraft_server_status WHERE guild_id = ?",
+                (ctx.guild.id,),
+            )
+
+            if not await cur.fetchone():
+                return await ctx.respond(
+                    embed=discord.Embed(
+                        description="Server status message is not set.",
+                        color=config["COLORS"]["ERROR"],
+                    )
+                )
+
+            await cur.execute(
+                "DELETE FROM minecraft_server_status WHERE guild_id = ?",
+                (ctx.guild.id,),
+            )
+            await self.conn.commit()
+
+        await ctx.respond(
+            embed=discord.Embed(
+                description="Server status message removed.",
+                color=config["COLORS"]["SUCCESS"],
+            )
+        )
+
     async def create_status_embed(self, ip: str, port: int):
         async with aiohttp.ClientSession() as session:
             async with session.get(
