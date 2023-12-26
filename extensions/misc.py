@@ -340,6 +340,44 @@ class Misc(commands.Cog):
             await ctx.respond(file=discord.File("tts.mp3"))
             os.remove("tts.mp3")
 
+    @discord.slash_command(
+        name="horoscope",
+        description="Get your daily horoscope",
+    )
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def _horoscope(
+        self,
+        ctx: discord.ApplicationContext,
+        sign=discord.Option(
+            str,
+            "Zodiac sign",
+            required=True,
+            choices=[
+                discord.OptionChoice(name="Aries", value="aries"),
+                discord.OptionChoice(name="Taurus", value="taurus"),
+                discord.OptionChoice(name="Gemini", value="gemini"),
+                discord.OptionChoice(name="Cancer", value="cancer"),
+                discord.OptionChoice(name="Leo", value="leo"),
+                discord.OptionChoice(name="Virgo", value="virgo"),
+                discord.OptionChoice(name="Libra", value="libra"),
+                discord.OptionChoice(name="Scorpio", value="scorpio"),
+                discord.OptionChoice(name="Sagittarius", value="sagittarius"),
+                discord.OptionChoice(name="Capricorn", value="capricorn"),
+                discord.OptionChoice(name="Aquarius", value="aquarius"),
+                discord.OptionChoice(name="Pisces", value="pisces"),
+            ],
+        ),
+    ):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://newastro.vercel.app/{sign}") as response:
+                data = await response.json()
+
+        embed = discord.Embed(
+            description=data["horoscope"], color=config["COLORS"]["SUCCESS"]
+        )
+        embed.set_thumbnail(url=data["icon"])
+        await ctx.respond(embed=embed)
+
     @discord.slash_command(name="colorscheme", description="Generate a color scheme")
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def _colorscheme(self, ctx: discord.ApplicationContext):
