@@ -278,10 +278,7 @@ class Developer(commands.Cog):
                 )
                 if await cur.fetchone():
                     return await ctx.respond(
-                        embed=discord.Embed(
-                            description=f"The guild `{guild_id}` is already whitelisted.",
-                            color=config["COLORS"]["ERROR"],
-                        )
+                        f"The guild **{guild_id}** is already whitelisted."
                     )
 
                 await cur.execute(
@@ -289,12 +286,7 @@ class Developer(commands.Cog):
                 )
                 await self.conn.commit()
 
-            return await ctx.respond(
-                embed=discord.Embed(
-                    description=f"The guild `{guild_id}` has been whitelisted.",
-                    color=config["COLORS"]["SUCCESS"],
-                )
-            )
+            return await ctx.respond(f"The guild **{guild_id}** has been whitelisted.")
         except Exception as e:
             await ctx.respond(f"Error occurred: {e}")
 
@@ -318,10 +310,7 @@ class Developer(commands.Cog):
                 )
                 if not await cur.fetchone():
                     return await ctx.respond(
-                        embed=discord.Embed(
-                            description=f"The guild `{guild_id}` is not whitelisted.",
-                            color=config["COLORS"]["ERROR"],
-                        )
+                        f"The guild **{guild_id}** is not whitelisted."
                     )
 
                 await cur.execute(
@@ -330,10 +319,7 @@ class Developer(commands.Cog):
                 await self.conn.commit()
 
             return await ctx.respond(
-                embed=discord.Embed(
-                    description=f"The guild `{guild_id}` has been unwhitelisted.",
-                    color=config["COLORS"]["SUCCESS"],
-                )
+                f"The guild **{guild_id}** has been unwhitelisted."
             )
         except Exception as e:
             await ctx.respond(f"Error occurred: {e}")
