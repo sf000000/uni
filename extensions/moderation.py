@@ -6,8 +6,14 @@ import re
 import aiohttp
 import json
 
+from bs4 import BeautifulSoup
 from discord.ext import commands
 from helpers.utils import log
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 
 def load_config():
@@ -1501,6 +1507,52 @@ class Moderation(commands.Cog):
                     f"Failed to upload file to VirusTotal: {response.status}",
                     ephemeral=True,
                 )
+
+    _emoji = discord.commands.SlashCommandGroup(
+        name="emoji", description="Commands related to emojis"
+    )
+
+    @_emoji.command(
+        name="add",
+        description="Add an emoji from emoji.gg.",
+    )
+    async def add_emoji(
+        self,
+        ctx: discord.ApplicationContext,
+        emoji_id: discord.Option(str, "ID of the emoji to add", required=True),
+    ):
+        emoji_url = f"https://emoji.gg/emoji/{emoji_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(emoji_url) as response:
+                if response.status != 200:
+                    return await ctx.respond("Failed to download emoji.")
+
+                soup = BeautifulSoup(await response.text(), "html.parser")
+                image_url = soup.find("img", {"class": "img-fluid emoji-img"})["src"]
+                await self.add_emoji_to_guild(
+                    ctx, image_url, emoji_id.replace("-", "_")
+                )
+
+    async def add_emoji_to_guild(
+        self, ctx: discord.ApplicationContext, emoji_url: str, emoji_name: str
+    ):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(emoji_url) as response:
+                    if response.status != 200:
+                        return await ctx.respond(
+                            "Failed to download emoji.", ephemeral=True
+                        )
+
+                    emoji_data = await response.read()
+
+            emoji = await ctx.guild.create_custom_emoji(
+                name=emoji_name, image=emoji_data, reason="Uni Emoji"
+            )
+            await ctx.respond(f"Successfully added **{emoji.name}** ({emoji})")
+
+        except Exception as e:
+            await ctx.respond(f"Failed to add emoji: {e}", ephemeral=True)
 
     async def handle_successful_scan(self, data, attachment, ctx):
         analysis_id = data["data"]["id"]
