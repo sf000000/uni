@@ -179,7 +179,7 @@ class Soundcloud(commands.Cog):
                 return [
                     comment
                     for comment in data["collection"]
-                    if comment["kind"] == "comment"
+                    if comment["kind"] == "comment" and len(comment["body"]) <= 100
                 ]
 
 
