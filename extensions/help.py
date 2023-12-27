@@ -226,7 +226,7 @@ class Help(commands.Cog):
             for option in command.options:
                 embed.add_field(
                     name=option.name,
-                    value=f"{option.description}\nRequired: {'Yes' if option.required else 'No'}",
+                    value=f"{option.description}\nRequired: {'<:checkmark:1189457685171687538>' if option.required else '<:letterx:1189490617961697380>'}",
                     inline=False,
                 )
 
