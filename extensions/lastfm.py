@@ -3,7 +3,6 @@ import aiosqlite
 import yaml
 import aiohttp
 import spotipy
-import lyricsgenius
 
 
 from discord.ext import commands
@@ -803,31 +802,6 @@ class LastFM(commands.Cog):
             await ctx.respond(embed=embed, view=view)
         else:
             await ctx.respond(content="No featured playlists found!", ephemeral=True)
-
-    @discord.commands.slash_command(
-        name="lyrics",
-        description="Gets lyrics for the given song",
-    )
-    async def lyrics_search(
-        self,
-        ctx: discord.ApplicationContext,
-        query=discord.Option(str, description="The song to search for.", required=True),
-    ):
-        genius = lyricsgenius.Genius(config["GENIUS_ACCESS_TOKEN"])
-        song = genius.search_song(query)
-        if not song:
-            await ctx.respond(
-                "Couldn't find the song on Genius.",
-                ephemeral=True,
-            )
-            return
-
-        embed = discord.Embed(
-            title=f"{song.title} by {song.artist}",
-            description=song.lyrics,
-            color=config["COLORS"]["SUCCESS"],
-        )
-        await ctx.respond(embed=embed)
 
 
 def setup(bot_: discord.Bot):
