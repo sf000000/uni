@@ -167,9 +167,9 @@ class HelpPaginator(discord.ui.View):
                 if command.parent
                 else command.name
             )
-
+            premium = ""
             if full_name in self.help_command.cog.premium_commands:
-                full_name += " " + config["EMOJIS"]["PREMIUM"]
+                premium = " " + config["EMOJIS"]["PREMIUM"]
 
             description_lines = [command.description or "No description"]
 
@@ -181,9 +181,11 @@ class HelpPaginator(discord.ui.View):
 
             full_description = "\n".join(description_lines)
 
-            embed.add_field(name=full_name, value=full_description, inline=False)
+            embed.add_field(
+                name=full_name + premium, value=full_description, inline=False
+            )
 
-            embed.set_footer(text=f"Page {self.current_page + 1}/{self.max_page + 1}")
+        embed.set_footer(text=f"Page {self.current_page + 1}/{self.max_page + 1}")
 
         return embed
 
@@ -204,8 +206,13 @@ class Help(commands.Cog):
             self.premium_commands = {cmd[0] for cmd in premium_commands}
 
     async def show_specific_command_help(self, ctx, command):
+        premium = ""
+
+        if f"/{command.qualified_name}" in self.premium_commands:
+            premium = " " + config["EMOJIS"]["PREMIUM"]
+
         embed = discord.Embed(
-            title=f"`{command.qualified_name}`",
+            title=f"`{command.qualified_name}`{premium}",
             description=command.description or "No description available.",
             color=config["COLORS"]["DEFAULT"],
         )
@@ -237,18 +244,23 @@ class Help(commands.Cog):
         ),
     ):
         if command_name:
-            commands = [
-                cmd
-                for cmd in self.bot.walk_application_commands()
-                if isinstance(cmd, discord.commands.SlashCommand)
-                and (
-                    cmd.parent is None or isinstance(cmd, discord.commands.SlashCommand)
+            path_parts = command_name.strip().split()
+            command = None
+            commands = list(self.bot.walk_application_commands())
+
+            for part in path_parts:
+                command = discord.utils.find(
+                    lambda c: c.name == part and c.parent == command, commands
                 )
-            ]
-            if specific_command := discord.utils.get(
-                commands, name=command_name.lower()
-            ):
-                await self.show_specific_command_help(ctx, specific_command)
+
+                if command is None:
+                    await ctx.respond(
+                        f"Command **{command_name}** not found.", ephemeral=True
+                    )
+                    return
+
+            if command:
+                await self.show_specific_command_help(ctx, command)
         else:
             skip_cogs = [
                 "developer",
