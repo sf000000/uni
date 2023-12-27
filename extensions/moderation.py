@@ -141,38 +141,38 @@ class Moderation(commands.Cog):
         except Exception as e:
             await ctx.respond(f"Failed to ban {member}: {e}")
 
-    @discord.slash_command(
-        name="cleanup",
-        description="Cleanup bot messages in the current channel",
-    )
-    @commands.has_permissions(manage_messages=True)
-    @commands.guild_only()
-    async def cleanup(
-        self,
-        ctx: discord.ApplicationContext,
-        amount: discord.Option(
-            int, "Number of messages to cleanup", required=False, default=10
-        ),
-    ):
-        def is_bot(m):
-            return m.author == self.bot.user
+    # @discord.slash_command(
+    #     name="cleanup",
+    #     description="Cleanup bot messages in the current channel",
+    # )
+    # @commands.has_permissions(manage_messages=True)
+    # @commands.guild_only()
+    # async def cleanup(
+    #     self,
+    #     ctx: discord.ApplicationContext,
+    #     amount: discord.Option(
+    #         int, "Number of messages to cleanup", required=False, default=10
+    #     ),
+    # ):
+    #     def is_bot(m):
+    #         return m.author == self.bot.user
 
-        try:
-            await ctx.channel.purge(limit=amount, check=is_bot)
-            await ctx.respond(f"Successfully cleaned up {amount} messages.")
+    #     try:
+    #         await ctx.channel.purge(limit=amount, check=is_bot)
+    #         await ctx.respond(f"Successfully cleaned up {amount} messages.")
 
-            await log(
-                guild=ctx.guild,
-                embed=discord.Embed(
-                    title="Messages Cleaned Up",
-                    description=f"{amount} bot messages have been cleaned up by {ctx.author.mention}.",
-                    color=config["COLORS"]["INVISIBLE"],
-                ),
-                conn=self.conn,
-            )
+    #         await log(
+    #             guild=ctx.guild,
+    #             embed=discord.Embed(
+    #                 title="Messages Cleaned Up",
+    #                 description=f"{amount} bot messages have been cleaned up by {ctx.author.mention}.",
+    #                 color=config["COLORS"]["INVISIBLE"],
+    #             ),
+    #             conn=self.conn,
+    #         )
 
-        except Exception as e:
-            await ctx.respond(f"Failed to cleanup messages: {e}")
+    #     except Exception as e:
+    #         await ctx.respond(f"Failed to cleanup messages: {e}")
 
     _thread = discord.commands.SlashCommandGroup(
         name="thread", description="Commands to manage threads and forum posts"
