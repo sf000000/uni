@@ -3,6 +3,7 @@ import aiosqlite
 import yaml
 
 from discord.ext import commands
+from helpers.constants import commands_with_tips
 
 
 def load_config():
@@ -72,7 +73,7 @@ class HelpPaginator(discord.ui.View):
         embed = discord.Embed(
             title="📘 Help Command Guide",
             description="Learn how to navigate and utilize the bot's commands for a seamless experience!",
-            color=config["COLORS"]["DEFAULT"],
+            color=config["COLORS"]["BLURPLE"],
         )
         embed.add_field(
             name="🔢 Navigating Pages",
@@ -150,7 +151,7 @@ class HelpPaginator(discord.ui.View):
 
     def create_command_embed(self):
         embed = discord.Embed(
-            color=config["COLORS"]["DEFAULT"],
+            color=config["COLORS"]["BLURPLE"],
         )
 
         start_index = (self.current_page - 1) * 8
@@ -207,14 +208,13 @@ class Help(commands.Cog):
 
     async def show_specific_command_help(self, ctx, command):
         premium = ""
-
         if f"/{command.qualified_name}" in self.premium_commands:
             premium = " " + config["EMOJIS"]["PREMIUM"]
 
         embed = discord.Embed(
             title=f"`{command.qualified_name}`{premium}",
             description=command.description or "No description available.",
-            color=config["COLORS"]["DEFAULT"],
+            color=config["COLORS"]["BLURPLE"],
         )
 
         if isinstance(command, discord.commands.SlashCommand):
@@ -226,11 +226,33 @@ class Help(commands.Cog):
             for option in command.options:
                 embed.add_field(
                     name=option.name,
-                    value=f"{option.description}\nRequired: {'<:checkmark:1189457685171687538>' if option.required else '<:letterx:1189490617961697380>'}",
+                    value=f"{option.description}\nRequired: {'Yes' if option.required else 'No'}",
                     inline=False,
                 )
 
-        await ctx.respond(embed=embed)
+        command_path = f"/{command.full_parent_name} {command.name}".strip()
+
+        print(command_path)
+
+        if command_path in commands_with_tips:
+            tips_data = commands_with_tips[command_path]
+
+            tips_button = discord.ui.Button(emoji="💡", style=discord.ButtonStyle.gray)
+
+            async def tips_button_callback(interaction: discord.Interaction):
+                await interaction.response.send_message(
+                    f"**Tips for `{command_path}`**\n\n{tips_data['description']}\n\n**Example**\n{tips_data['example']} {tips_data['image']}",
+                    ephemeral=True,
+                )
+
+            tips_button.callback = tips_button_callback
+
+            view = discord.ui.View()
+            view.add_item(tips_button)
+
+            await ctx.respond(embed=embed, view=view)
+        else:
+            await ctx.respond(embed=embed)
 
     @discord.slash_command(
         name="help",

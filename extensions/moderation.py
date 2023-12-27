@@ -1516,6 +1516,7 @@ class Moderation(commands.Cog):
         name="add",
         description="Add an emoji from emoji.gg.",
     )
+    @commands.has_permissions(manage_emojis=True)
     async def add_emoji(
         self,
         ctx: discord.ApplicationContext,
