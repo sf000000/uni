@@ -260,70 +260,6 @@ class Developer(commands.Cog):
         except Exception as e:
             return await ctx.respond(f"An error occurred: {e}")
 
-    @_dev.command(name="whitelist", description="Whitelists a guild to use the bot.")
-    async def whitelist(
-        self,
-        ctx: discord.ApplicationContext,
-        guild_id: discord.Option(
-            str, "The ID of the guild to whitelist.", required=True
-        ),
-    ):
-        try:
-            async with self.conn.cursor() as cur:
-                await cur.execute(
-                    "CREATE TABLE IF NOT EXISTS whitelisted_guilds (guild_id TEXT)"
-                )
-                await cur.execute(
-                    "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?", (guild_id,)
-                )
-                if await cur.fetchone():
-                    return await ctx.respond(
-                        f"The guild **{guild_id}** is already whitelisted."
-                    )
-
-                await cur.execute(
-                    "INSERT INTO whitelisted_guilds (guild_id) VALUES (?)", (guild_id,)
-                )
-                await self.conn.commit()
-
-            return await ctx.respond(f"The guild **{guild_id}** has been whitelisted.")
-        except Exception as e:
-            await ctx.respond(f"Error occurred: {e}")
-
-    @_dev.command(
-        name="unwhitelist", description="Unwhitelists a guild from using the bot."
-    )
-    async def unwhitelist(
-        self,
-        ctx: discord.ApplicationContext,
-        guild_id: discord.Option(
-            str, "The ID of the guild to unwhitelist.", required=True
-        ),
-    ):
-        try:
-            async with self.conn.cursor() as cur:
-                await cur.execute(
-                    "CREATE TABLE IF NOT EXISTS whitelisted_guilds (guild_id TEXT)"
-                )
-                await cur.execute(
-                    "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?", (guild_id,)
-                )
-                if not await cur.fetchone():
-                    return await ctx.respond(
-                        f"The guild **{guild_id}** is not whitelisted."
-                    )
-
-                await cur.execute(
-                    "DELETE FROM whitelisted_guilds WHERE guild_id = ?", (guild_id,)
-                )
-                await self.conn.commit()
-
-            return await ctx.respond(
-                f"The guild **{guild_id}** has been unwhitelisted."
-            )
-        except Exception as e:
-            await ctx.respond(f"Error occurred: {e}")
-
     @_dev.command(
         name="status",
         description="Set bot's playing status.",
@@ -591,19 +527,6 @@ class Developer(commands.Cog):
                 (str(ctx.command), str(ctx.author.id), str(ctx.guild.id)),
             )
             await self.conn.commit()
-
-    # @commands.Cog.listener()
-    # async def on_guild_join(self, guild: discord.Guild):
-    #     try:
-    #         async with self.conn.cursor() as cur:
-    #             await cur.execute(
-    #                 "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?",
-    #                 (str(guild.id),),
-    #             )
-    #             if not await cur.fetchone():
-    #                 await guild.leave()
-    #     except Exception as e:
-    #         print(f"Error occurred during guild join: {e}")
 
 
 def setup(bot_: discord.Bot):
