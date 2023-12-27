@@ -532,13 +532,6 @@ class Information(commands.Cog):
 
         await ctx.respond(embed=embed)
 
-    @discord.slash_command(
-        name="membercount",
-        description="Get the member count of the server.",
-    )
-    async def membercount(self, ctx: discord.ApplicationContext):
-        await ctx.respond(f"There are {ctx.guild.member_count} members in this server.")
-
     _reminders = discord.commands.SlashCommandGroup(
         name="reminders", description="Reminder related commands."
     )
