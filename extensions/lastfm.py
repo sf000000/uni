@@ -666,7 +666,6 @@ class LastFM(commands.Cog):
         features = results[0]
 
         embed = discord.Embed(
-            title="Audio Features",
             color=config["COLORS"]["SUCCESS"],
         )
 
