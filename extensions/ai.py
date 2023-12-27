@@ -97,7 +97,7 @@ class AI(commands.Cog):
             ).set_image(url=image_url)
         )
 
-    @_ai.command(name="chat", description="Chat with Uni.")
+    @_ai.command(name="chat", description="Chat with Uni. (GPT-3)")
     @commands.guild_only()
     async def chat(
         self,
