@@ -761,10 +761,8 @@ class Server(commands.Cog):
 
         for guild in self.bot.guilds:
             for vc in guild.voice_channels:
-                for member in vc.members:
-                    if member.bot:
-                        continue
-
+                members = filter(lambda member: not member.bot, vc.members)
+                for member in members:
                     await self.update_voice_duration(member, guild.id, 30)
 
     @commands.Cog.listener()
