@@ -9,15 +9,16 @@ import io
 import wand.image
 import wand.color
 import pytz
+import json
 
-from discord.ext import commands
+from helpers.snapchat import *
+from datetime import datetime, timedelta
+from discord.ext import commands, tasks
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from helpers.snapchat import *
-from datetime import datetime, timedelta
 
 
 def load_config():
@@ -34,6 +35,8 @@ class Server(commands.Cog):
         self.bot = bot_
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
+        self.update_voice_stats.start()
+        self.voice_update_loop.start()
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -613,6 +616,156 @@ class Server(commands.Cog):
         embed.set_thumbnail(url=ctx.guild.icon.url)
 
         await ctx.respond(embed=embed)
+
+    @discord.slash_command(
+        name="voicestats", description="Setup an auto updating voice leaderboard embed."
+    )
+    @commands.has_permissions(manage_guild=True)
+    async def voice_stats(
+        self,
+        ctx: discord.ApplicationContext,
+        channel: discord.Option(
+            discord.TextChannel, "The channel to send the embed in", required=True
+        ),
+    ):
+        try:
+            async with self.conn.cursor() as cur:
+                await ctx.defer()
+
+                await cur.execute(
+                    "SELECT 1 FROM voice_stats WHERE guild_id = ?", (ctx.guild.id,)
+                )
+                if not await cur.fetchone():
+                    embed = discord.Embed(
+                        title="Voice Leaderboard",
+                        description="There are currently no voice stats for this server. Join a voice channel to get started!",
+                        color=config["COLORS"]["DEFAULT"],
+                    )
+
+                    if channel.permissions_for(ctx.guild.me).send_messages:
+                        message = await channel.send(embed=embed)
+                        await cur.execute(
+                            "INSERT INTO voice_stats (guild_id, channel_id, message_id) VALUES (?, ?, ?)",
+                            (ctx.guild.id, channel.id, message.id),
+                        )
+                    else:
+                        return await ctx.respond(
+                            f"I don't have permission to send messages in {channel.mention}",
+                            ephemeral=True,
+                        )
+
+                else:
+                    await cur.execute(
+                        "UPDATE voice_stats SET channel_id = ?, enabled = 1 WHERE guild_id = ?",
+                        (channel.id, ctx.guild.id),
+                    )
+
+                await self.conn.commit()
+                await ctx.respond(f"Voice stats enabled in {channel.mention}.")
+        except Exception as e:
+            await ctx.respond(f"An error occurred: {e}", ephemeral=True)
+
+    @tasks.loop(seconds=30)
+    async def update_voice_stats(self):
+        await self.bot.wait_until_ready()
+
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT guild_id, channel_id, message_id FROM voice_stats WHERE enabled = 1"
+            )
+            rows = await cur.fetchall()
+
+            for guild_id, channel_id, message_id in rows:
+                guild = self.bot.get_guild(guild_id)
+                if guild and message_id:
+                    await cur.execute(
+                        """
+                        SELECT user_id, voice_duration FROM user_voice_stats 
+                        WHERE guild_id = ? ORDER BY voice_duration DESC LIMIT 10
+                        """,
+                        (guild_id,),
+                    )
+                    top_users = await cur.fetchall()
+
+                    embed = discord.Embed(
+                        title="`Voice Activity Leaderboard`",
+                        color=config["COLORS"]["DEFAULT"],
+                    )
+
+                    for index, (user_id, voice_duration) in enumerate(
+                        top_users, start=1
+                    ):
+                        if member := guild.get_member(user_id):
+                            name = f"{index}. {member.nick or member.display_name}"
+                            value = self.format_duration(
+                                timedelta(seconds=voice_duration)
+                            )
+                            embed.add_field(name=name, value=value)
+
+                    embed.add_field(
+                        name="Updated",
+                        value=f"<t:{int(time.time())}:R>",
+                        inline=False,
+                    )
+
+                    if not top_users:
+                        embed.description = "No voice data available."
+
+                    if text_channel := guild.get_channel(channel_id):
+                        try:
+                            message = await text_channel.fetch_message(message_id)
+                            await message.edit(embed=embed)
+                        except discord.NotFound:
+                            print(
+                                f"Voice stats message not found in {text_channel.mention}"
+                            )
+
+    async def update_voice_duration(
+        self, member: discord.Member, guild_id: int, added_seconds: int
+    ):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                """
+                INSERT OR IGNORE INTO user_voice_stats (user_id, guild_id, voice_duration)
+                VALUES (?, ?, 0)
+                """,
+                (member.id, guild_id),
+            )
+
+            await cur.execute(
+                """
+                UPDATE user_voice_stats 
+                SET voice_duration = voice_duration + ? 
+                WHERE user_id = ? AND guild_id = ?
+                """,
+                (added_seconds, member.id, guild_id),
+            )
+
+            await self.conn.commit()
+
+    def format_duration(self, duration: timedelta) -> str:
+        units = [("day", 86400), ("hour", 3600), ("minute", 60)]
+        total_seconds = int(duration.total_seconds())
+        parts = []
+
+        for name, count in units:
+            if value := total_seconds // count:
+                total_seconds %= count
+                parts.append(f"{value} {name}{'s' if value > 1 else ''}")
+
+        return ", ".join(parts) or "Less than a minute"
+
+    @tasks.loop(seconds=30)
+    async def voice_update_loop(self):
+        await self.bot.wait_until_ready()
+
+        for guild in self.bot.guilds:
+            for vc in guild.voice_channels:
+                for member in vc.members:
+                    if member.bot:
+                        continue
+
+                    await self.update_voice_duration(member, guild.id, 30)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
