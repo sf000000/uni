@@ -3,15 +3,9 @@ import aiosqlite
 import yaml
 import time
 import aiohttp
-import zipfile
 import os
-import io
-import wand.image
-import wand.color
 import pytz
-import json
 
-from helpers.snapchat import *
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 from selenium import webdriver
@@ -336,147 +330,6 @@ class Server(commands.Cog):
     async def _pin(self, ctx: discord.ApplicationContext):
         async for message in ctx.channel.history(limit=1):
             await message.pin()
-
-    @discord.slash_command(
-        name="extractstickers",
-        description="Sends all of your servers stickers in a zip file",
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def _extract_stickers(self, ctx: discord.ApplicationContext):
-        await ctx.defer()
-        stickers = await ctx.guild.fetch_stickers()
-
-        if not stickers:
-            return await ctx.respond("No stickers found.", ephemeral=True)
-
-        with zipfile.ZipFile("temp/stickers.zip", "w") as zipf:
-            for sticker in stickers:
-                data = await sticker.read()
-                data_file = io.BytesIO(data)
-                zipf.writestr(f"{sticker.name}.png", data_file.read())
-
-        await ctx.respond(
-            file=discord.File("temp/stickers.zip"), ephemeral=True, delete_after=60
-        )
-
-        os.remove("temp/stickers.zip")
-
-    @discord.slash_command(
-        name="extractemojis",
-        description="Sends all of your servers emojis in a zip file",
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def _extract_emojis(self, ctx: discord.ApplicationContext):
-        await ctx.defer()
-        emojis = await ctx.guild.fetch_emojis()
-
-        if not emojis:
-            return await ctx.respond("No emojis found.", ephemeral=True)
-
-        with zipfile.ZipFile("temp/emojis.zip", "w") as zipf:
-            for emoji in emojis:
-                data = await emoji.read()
-                data_file = io.BytesIO(data)
-                zipf.writestr(f"{emoji.name}.png", data_file.read())
-
-        await ctx.respond(
-            file=discord.File("temp/emojis.zip"), ephemeral=True, delete_after=60
-        )
-
-        os.remove("temp/emojis.zip")
-
-    @discord.slash_command(
-        name="snapchat",
-        description="Get bitmoji and QR scan code for user",
-    )
-    async def _snapchat(
-        self,
-        ctx: discord.ApplicationContext,
-        username: discord.Option(
-            str, description="The Snapchat username to get the code for"
-        ),
-    ):
-        await ctx.defer()
-
-        snapchat_user = SnapChat(username)
-        error = await snapchat_user.check_username()
-
-        if error:
-            return await ctx.respond(error, ephemeral=True)
-
-        snapcode_svg, filetype, size = await snapchat_user.get_snapcode(
-            bitmoji=True, size=1000
-        )
-
-        with open("temp/snapcode.svg", "wb") as file:
-            file.write(snapcode_svg)
-
-        with wand.image.Image() as img:
-            with wand.color.Color("transparent") as background_color:
-                img.read(blob=snapcode_svg, background=background_color)
-                img.save(filename="temp/snapcode.png")
-
-        await ctx.respond(file=discord.File("temp/snapcode.png"))
-
-        os.remove("temp/snapcode.svg")
-        os.remove("temp/snapcode.png")
-
-    @discord.slash_command(
-        name="xbox",
-        description="Get Xbox profile for user",
-    )
-    async def _xbox(
-        self,
-        ctx: discord.ApplicationContext,
-        gamertag: discord.Option(
-            str, description="The Xbox gamertag to get the profile for"
-        ),
-    ):
-        await ctx.defer()
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://xbl.io/api/v2/search/{gamertag}",
-                headers={"X-Authorization": config["XBOX_LIVE_API_KEY"]},
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.respond("Invalid gamertag.", ephemeral=True)
-                data = await resp.json()
-
-                person = data["people"][0]
-
-                embed = discord.Embed(
-                    color=config["COLORS"]["SUCCESS"],
-                )
-
-                embed.add_field(name="Gamertag", value=person["gamertag"], inline=True)
-                embed.add_field(
-                    name="Gamer Score",
-                    value=person["gamerScore"],
-                    inline=True,
-                )
-                embed.add_field(
-                    name="Account Tier",
-                    value=person["detail"]["accountTier"],
-                    inline=True,
-                )
-
-                embed.add_field(
-                    name="Followers",
-                    value=person["detail"]["followerCount"],
-                    inline=True,
-                )
-                embed.add_field(
-                    name="Following",
-                    value=person["detail"]["followingCount"],
-                    inline=True,
-                )
-                embed.add_field(
-                    name="Gamepass", value=person["detail"]["hasGamePass"], inline=True
-                )
-
-                embed.set_thumbnail(url=person["displayPicRaw"])
-                await ctx.respond(embed=embed)
 
     @discord.slash_command(
         name="server",
