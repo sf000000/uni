@@ -566,6 +566,23 @@ class Developer(commands.Cog):
             )
         )
 
+    @_dev.command(
+        name="guilds",
+        description="Gets the current guilds the bot is in.",
+    )
+    async def _guilds(self, ctx: discord.ApplicationContext):
+        guild_lines = [
+            f"{index}. {guild.name} - {guild.id}"
+            for index, guild in enumerate(self.bot.guilds, 1)
+        ]
+
+        await ctx.respond(
+            embed=discord.Embed(
+                description="\n".join(guild_lines),
+                color=config["COLORS"]["DEFAULT"],
+            )
+        )
+
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
         async with self.conn.cursor() as cur:
@@ -575,18 +592,18 @@ class Developer(commands.Cog):
             )
             await self.conn.commit()
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild: discord.Guild):
-        try:
-            async with self.conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?",
-                    (str(guild.id),),
-                )
-                if not await cur.fetchone():
-                    await guild.leave()
-        except Exception as e:
-            print(f"Error occurred during guild join: {e}")
+    # @commands.Cog.listener()
+    # async def on_guild_join(self, guild: discord.Guild):
+    #     try:
+    #         async with self.conn.cursor() as cur:
+    #             await cur.execute(
+    #                 "SELECT 1 FROM whitelisted_guilds WHERE guild_id = ?",
+    #                 (str(guild.id),),
+    #             )
+    #             if not await cur.fetchone():
+    #                 await guild.leave()
+    #     except Exception as e:
+    #         print(f"Error occurred during guild join: {e}")
 
 
 def setup(bot_: discord.Bot):
