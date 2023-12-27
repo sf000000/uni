@@ -4,7 +4,6 @@ import yaml
 import datetime
 import re
 import aiohttp
-import pytz
 import json
 
 from discord.ext import commands
@@ -1285,36 +1284,6 @@ class Moderation(commands.Cog):
 
         except Exception as e:
             await ctx.respond(f"Failed to nuke channel: {e}")
-
-    @discord.slash_command(
-        name="newusers",
-        description="View a list of new users in the guild",
-    )
-    @commands.has_permissions(manage_guild=True)
-    @commands.guild_only()
-    async def newusers(self, ctx: discord.ApplicationContext):
-        try:
-            embed = discord.Embed(
-                description="New users in the past 24 hours",
-                color=config["COLORS"]["DEFAULT"],
-            )
-            utc = pytz.utc
-            now = datetime.datetime.now(utc)
-            one_day_ago = now - datetime.timedelta(days=1)
-            new_users = [
-                member
-                for member in ctx.guild.members
-                if member.joined_at and member.joined_at > one_day_ago
-            ]
-            if not new_users:
-                return await ctx.respond("No new users found.")
-            for member in new_users:
-                embed.add_field(
-                    name=member.name, value=f"<t:{int(member.joined_at.timestamp())}:R>"
-                )
-            await ctx.respond(embed=embed)
-        except Exception as e:
-            await ctx.respond(f"Failed to get new users: {e}")
 
     @discord.slash_command(
         name="slowmode",
