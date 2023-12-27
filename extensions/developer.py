@@ -178,7 +178,14 @@ class Developer(commands.Cog):
         embed_dict = embed.to_dict()
         embed_json = json.dumps(embed_dict, indent=4)
 
-        await ctx.respond(f"```json\n{embed_json}\n```")
+        with open("embed.json", "w") as f:
+            f.write(embed_json)
+
+        await ctx.respond(
+            file=discord.File("embed.json", filename="embed.json"),
+        )
+
+        os.remove("embed.json")
 
     @_dev.command(
         name="disablecommand",
