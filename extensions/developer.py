@@ -4,13 +4,12 @@ import yaml
 import json
 import os
 import datetime
-import aiohttp
 import ast
 import time
 import re
 
 from discord.ext import commands
-from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info, is_premium
+from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info
 
 
 def load_config():
