@@ -50,3 +50,11 @@ file_emoji_dict = {
     ".yaml": "🔧",
     ".env": "🔒",
 }
+
+commands_with_tips = {
+    "/emoji add": {
+        "description": "Look for the shown section on emoji.gg, and copy the emoji id.",
+        "example": "/emoji add emoji_id: `5498_catJAM`",
+        "image": "https://i.postimg.cc/NMVVBWwZ/image.png",
+    }
+}
