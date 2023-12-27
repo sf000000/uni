@@ -109,6 +109,7 @@ class HelpPaginator(discord.ui.View):
             value="Your privacy is important. The bot operates under strict data handling policies. Ensure you have the necessary permissions in your server to use commands.",
             inline=False,
         )
+        embed.set_thumbnail(url="https://files.catbox.moe/vx7txo.png")
         return embed
 
     async def on_timeout(self):
@@ -157,8 +158,8 @@ class HelpPaginator(discord.ui.View):
 
         page_commands = self.commands[start_index:end_index]
 
-        if not page_commands:  # If there are no commands to display on this page
-            embed.description = "No more commands to display!"  # Default message
+        if not page_commands:
+            embed.description = "No more commands to display!"
 
         for command in page_commands:
             full_name = (
@@ -202,27 +203,71 @@ class Help(commands.Cog):
             premium_commands = await cursor.fetchall()
             self.premium_commands = {cmd[0] for cmd in premium_commands}
 
+    async def show_specific_command_help(self, ctx, command):
+        embed = discord.Embed(
+            title=f"`{command.qualified_name}`",
+            description=command.description or "No description available.",
+            color=config["COLORS"]["DEFAULT"],
+        )
+
+        if isinstance(command, discord.commands.SlashCommand):
+            embed.add_field(
+                name="Usage",
+                value=f"```/{command.qualified_name} { ' '.join([f'<{opt.name}>' for opt in command.options]) }```",
+                inline=False,
+            )
+            for option in command.options:
+                embed.add_field(
+                    name=option.name,
+                    value=f"{option.description}\nRequired: {'<:checkmark:1189457685171687538>' if option.required else '<:letterx:1189490617961697380>'}",
+                    inline=False,
+                )
+
+        await ctx.respond(embed=embed)
+
     @discord.slash_command(
         name="help",
         description="Shows all commands.",
     )
-    async def _help(self, ctx: discord.ApplicationContext):
-        skip_cogs = [
-            "developer",
-            "error_handler",
-        ]
+    async def _help(
+        self,
+        ctx: discord.ApplicationContext,
+        command_name: discord.Option(
+            str, description="The command to get help for.", required=False
+        ),
+    ):
+        if command_name:
+            commands = [
+                cmd
+                for cmd in self.bot.walk_application_commands()
+                if isinstance(cmd, discord.commands.SlashCommand)
+                and (
+                    cmd.parent is None or isinstance(cmd, discord.commands.SlashCommand)
+                )
+            ]
+            if specific_command := discord.utils.get(
+                commands, name=command_name.lower()
+            ):
+                await self.show_specific_command_help(ctx, specific_command)
+        else:
+            skip_cogs = [
+                "developer",
+                "error_handler",
+            ]
 
-        commands = [
-            cmd
-            for cmd in self.bot.walk_application_commands()
-            if isinstance(cmd, discord.commands.SlashCommand)
-            and (cmd.parent is None or isinstance(cmd, discord.commands.SlashCommand))
-            and (cmd.cog is None or cmd.cog.qualified_name.lower() not in skip_cogs)
-        ]
+            commands = [
+                cmd
+                for cmd in self.bot.walk_application_commands()
+                if isinstance(cmd, discord.commands.SlashCommand)
+                and (
+                    cmd.parent is None or isinstance(cmd, discord.commands.SlashCommand)
+                )
+                and (cmd.cog is None or cmd.cog.qualified_name.lower() not in skip_cogs)
+            ]
 
-        paginator = HelpPaginator(self._help, commands)
-        embed = paginator.create_embed()
-        await ctx.respond(embed=embed, view=paginator)
+            paginator = HelpPaginator(self._help, commands)
+            embed = paginator.create_embed()
+            await ctx.respond(embed=embed, view=paginator)
 
 
 def setup(bot_: discord.Bot):
