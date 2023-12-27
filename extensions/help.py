@@ -73,7 +73,7 @@ class HelpPaginator(discord.ui.View):
         embed = discord.Embed(
             title="📘 Help Command Guide",
             description="Learn how to navigate and utilize the bot's commands for a seamless experience!",
-            color=config["COLORS"]["BLURPLE"],
+            color=config["COLORS"]["DEFAULT"],
         )
         embed.add_field(
             name="🔢 Navigating Pages",
@@ -151,7 +151,7 @@ class HelpPaginator(discord.ui.View):
 
     def create_command_embed(self):
         embed = discord.Embed(
-            color=config["COLORS"]["BLURPLE"],
+            color=config["COLORS"]["DEFAULT"],
         )
 
         start_index = (self.current_page - 1) * 8
@@ -214,7 +214,7 @@ class Help(commands.Cog):
         embed = discord.Embed(
             title=f"`{command.qualified_name}`{premium}",
             description=command.description or "No description available.",
-            color=config["COLORS"]["BLURPLE"],
+            color=config["COLORS"]["DEFAULT"],
         )
 
         if isinstance(command, discord.commands.SlashCommand):
@@ -237,11 +237,13 @@ class Help(commands.Cog):
         if command_path in commands_with_tips:
             tips_data = commands_with_tips[command_path]
 
-            tips_button = discord.ui.Button(emoji="💡", style=discord.ButtonStyle.gray)
+            tips_button = discord.ui.Button(
+                emoji="🔍", style=discord.ButtonStyle.secondary
+            )
 
             async def tips_button_callback(interaction: discord.Interaction):
                 await interaction.response.send_message(
-                    f"**Tips for `{command_path}`**\n\n{tips_data['description']}\n\n**Example**\n{tips_data['example']} {tips_data['image']}",
+                    f"**Extra tips for `{command_path}`**\n\n{tips_data['description']}\n\n**Example**\n{tips_data['example']}\n{tips_data['image']}",
                     ephemeral=True,
                 )
 
