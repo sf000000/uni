@@ -232,8 +232,6 @@ class Help(commands.Cog):
 
         command_path = f"/{command.full_parent_name} {command.name}".strip()
 
-        print(command_path)
-
         if command_path in commands_with_tips:
             tips_data = commands_with_tips[command_path]
 
