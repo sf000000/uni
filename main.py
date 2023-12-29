@@ -30,8 +30,11 @@ class Bot(commands.AutoShardedBot):
         for filename in os.listdir(extensions_dir):
             if filename.endswith(".py"):
                 extension = f"{extensions_dir}.{filename[:-3]}"
+                print(f"Loading extension {Fore.GREEN}{extension}{Style.RESET_ALL}")
                 try:
-                    self.load_extension(extension)
+                    self.load_extension(extension) if extension not in [
+                        "extensions.github"
+                    ] else None
                 except Exception as e:
                     print(
                         f"Failed to load extension {Fore.RED}{extension}{Style.RESET_ALL}: {Fore.RED}{e}{Style.RESET_ALL}"
