@@ -97,12 +97,12 @@ class AI(commands.Cog):
             ).set_image(url=image_url)
         )
 
-    @_ai.command(name="chat", description="Chat with Uni. (GPT-3)")
+    @_ai.command(name="chat", description="Chat with the bot. (GPT-3)")
     @commands.guild_only()
     async def chat(
         self,
         ctx: discord.ApplicationContext,
-        message: discord.Option(str, "The message to send to Uni.", required=True),
+        message: discord.Option(str, "The message to send to the bot.", required=True),
     ):
         if not await is_premium(
             ctx.author,
@@ -160,9 +160,9 @@ class AI(commands.Cog):
     async def generate_chat_history_file(self, interaction: discord.Interaction):
         user_history = self.conversation_history.setdefault(interaction.user.id, [])
 
-        history_text = "Chat History with Uni\n\n"
+        history_text = "Chat History\n\n"
         for message in user_history:
-            speaker = "Uni" if message["role"] == "assistant" else "You"
+            speaker = "Bot" if message["role"] == "assistant" else "You"
             history_text += f"{speaker}: {message['content']}\n"
 
         with open(
@@ -172,7 +172,7 @@ class AI(commands.Cog):
 
         await interaction.response.send_message(
             file=discord.File(f"{interaction.user.id}_chat_history.txt"),
-            content="Here's your chat history with Uni.",
+            content="Here's your chat history.",
         )
         os.remove(f"{interaction.user.id}_chat_history.txt")
 
