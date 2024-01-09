@@ -521,69 +521,84 @@ class Server(commands.Cog):
     @tasks.loop(seconds=30)
     async def update_voice_stats(self):
         await self.bot.wait_until_ready()
+        rows = await self.fetch_voice_stats()
 
+        for guild_id, channel_id, message_id in rows:
+            await self.update_guild_stats(guild_id, channel_id, message_id)
+
+    async def fetch_voice_stats(self):
         async with self.conn.cursor() as cur:
             await cur.execute(
                 "SELECT guild_id, channel_id, message_id FROM voice_stats WHERE enabled = 1"
             )
-            rows = await cur.fetchall()
+            return await cur.fetchall()
 
-            for guild_id, channel_id, message_id in rows:
-                guild = self.bot.get_guild(guild_id)
-                if guild and message_id:
-                    await cur.execute(
-                        """
-                        SELECT user_id, voice_duration FROM user_voice_stats
-                        WHERE guild_id = ? ORDER BY voice_duration DESC LIMIT 10
-                        """,
-                        (guild_id,),
-                    )
-                    top_users = await cur.fetchall()
+    async def update_guild_stats(self, guild_id: int, channel_id: int, message_id: int):
+        guild = self.bot.get_guild(guild_id)
+        if guild and message_id:
+            top_users = await self.fetch_top_users(guild_id)
+            embed = self.create_embed(top_users, guild)
+            await self.update_message(embed, guild, channel_id, message_id)
 
-                    embed = discord.Embed(
-                        title="`Voice Activity Leaderboard`",
-                        color=config["COLORS"]["DEFAULT"],
-                    )
+    async def fetch_top_users(self, guild_id: int):
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                """
+                SELECT user_id, voice_duration FROM user_voice_stats
+                WHERE guild_id = ? ORDER BY voice_duration DESC LIMIT 10
+                """,
+                (guild_id,),
+            )
+            return await cur.fetchall()
 
-                    for index, (user_id, voice_duration) in enumerate(
-                        top_users, start=1
-                    ):
-                        if member := guild.get_member(user_id):
-                            name = member.nick or member.display_name
+    def create_embed(self, top_users: list, guild: discord.Guild):
+        embed = discord.Embed(
+            title="`Voice Activity Leaderboard`",
+            color=config["COLORS"]["DEFAULT"],
+        )
 
-                            if index == 1:
-                                name = f"🥇 {name}"
-                            elif index == 2:
-                                name = f"🥈 {name}"
-                            elif index == 3:
-                                name = f"🥉 {name}"
+        for index, (user_id, voice_duration) in enumerate(top_users, start=1):
+            if member := guild.get_member(user_id):
+                name = self.format_name(member, index)
+                formatted_duration = self.format_duration(
+                    timedelta(seconds=voice_duration)
+                )
+                embed.add_field(
+                    name=f"{index}. {name}",
+                    value=formatted_duration,
+                    inline=False,
+                )
 
-                            formatted_duration = self.format_duration(
-                                timedelta(seconds=voice_duration)
-                            )
-                            embed.add_field(
-                                name=f"{index}. {name}",
-                                value=formatted_duration,
-                                inline=False,
-                            )
+        embed.add_field(
+            name="Updated",
+            value=f"<t:{int(time.time())}:R>",
+            inline=False,
+        )
 
-                    embed.add_field(
-                        name="Updated",
-                        value=f"<t:{int(time.time())}:R>",
-                        inline=False,
-                    )
+        if not top_users:
+            embed.description = "No voice data available."
 
-                    if not top_users:
-                        embed.description = "No voice data available."
+        return embed
 
-                    if text_channel := guild.get_channel(channel_id):
-                        try:
-                            message = await text_channel.fetch_message(message_id)
-                            await message.edit(embed=embed)
-                        except discord.NotFound:
-                            print(
-                                f"Voice stats message not found in {text_channel.mention}"
-                            )
+    def format_name(self, member, index):
+        name = member.nick or member.display_name
+
+        if index == 1:
+            name = f"🥇 {name}"
+        elif index == 2:
+            name = f"🥈 {name}"
+        elif index == 3:
+            name = f"🥉 {name}"
+
+        return name
+
+    async def update_message(self, embed, guild, channel_id, message_id):
+        if text_channel := guild.get_channel(channel_id):
+            try:
+                message = await text_channel.fetch_message(message_id)
+                await message.edit(embed=embed)
+            except discord.NotFound:
+                print(f"Voice stats message not found in {text_channel.mention}")
 
     async def update_voice_duration(
         self, member: discord.Member, guild_id: int, added_seconds: int
@@ -612,12 +627,11 @@ class Server(commands.Cog):
         days = duration.days
         hours, remainder = divmod(duration.seconds, 3600)
 
-        total_hours = days * 24 + hours  # Convert total duration to hours
+        total_hours = days * 24 + hours
 
-        hour_scale = 24  # Define how many hours one '●' represents
-        num_dots = total_hours // hour_scale  # Calculate the number of '●'s
+        hour_scale = 24
+        num_dots = total_hours // hour_scale
 
-        # Ensure at least one dot is shown even for durations less than the scale
         if num_dots == 0 and total_hours > 0:
             num_dots = 1
 
