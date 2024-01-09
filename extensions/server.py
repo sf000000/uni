@@ -533,7 +533,7 @@ class Server(commands.Cog):
                 if guild and message_id:
                     await cur.execute(
                         """
-                        SELECT user_id, voice_duration FROM user_voice_stats 
+                        SELECT user_id, voice_duration FROM user_voice_stats
                         WHERE guild_id = ? ORDER BY voice_duration DESC LIMIT 10
                         """,
                         (guild_id,),
@@ -549,11 +549,23 @@ class Server(commands.Cog):
                         top_users, start=1
                     ):
                         if member := guild.get_member(user_id):
-                            name = f"{index}. {member.nick or member.display_name}"
-                            value = self.format_duration(
+                            name = member.nick or member.display_name
+
+                            if index == 1:
+                                name = f"🥇 {name}"
+                            elif index == 2:
+                                name = f"🥈 {name}"
+                            elif index == 3:
+                                name = f"🥉 {name}"
+
+                            formatted_duration = self.format_duration(
                                 timedelta(seconds=voice_duration)
                             )
-                            embed.add_field(name=name, value=value)
+                            embed.add_field(
+                                name=f"{index}. {name}",
+                                value=formatted_duration,
+                                inline=False,
+                            )
 
                     embed.add_field(
                         name="Updated",
@@ -587,8 +599,8 @@ class Server(commands.Cog):
 
             await cur.execute(
                 """
-                UPDATE user_voice_stats 
-                SET voice_duration = voice_duration + ? 
+                UPDATE user_voice_stats
+                SET voice_duration = voice_duration + ?
                 WHERE user_id = ? AND guild_id = ?
                 """,
                 (added_seconds, member.id, guild_id),
@@ -597,16 +609,19 @@ class Server(commands.Cog):
             await self.conn.commit()
 
     def format_duration(self, duration: timedelta) -> str:
-        units = [("day", 86400), ("hour", 3600), ("minute", 60)]
-        total_seconds = int(duration.total_seconds())
-        parts = []
+        days = duration.days
+        hours, remainder = divmod(duration.seconds, 3600)
 
-        for name, count in units:
-            if value := total_seconds // count:
-                total_seconds %= count
-                parts.append(f"{value} {name}{'s' if value > 1 else ''}")
+        total_hours = days * 24 + hours  # Convert total duration to hours
 
-        return ", ".join(parts) or "Less than a minute"
+        hour_scale = 24  # Define how many hours one '●' represents
+        num_dots = total_hours // hour_scale  # Calculate the number of '●'s
+
+        # Ensure at least one dot is shown even for durations less than the scale
+        if num_dots == 0 and total_hours > 0:
+            num_dots = 1
+
+        return f"{'●' * num_dots} - {days}d {hours}h"
 
     @tasks.loop(seconds=30)
     async def voice_update_loop(self):
