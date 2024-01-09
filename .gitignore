@@ -237,3 +237,4 @@ application.yml
 Lavalink.jar
 chromedriver
 logs/
+startup.sh
