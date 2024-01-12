@@ -121,15 +121,14 @@ From basic server management to fun games, music playback, and even AI interacti
   22. `/vote` - Vote for the bot on top.gg.
   37. `/version` - Gets the current version of the
 
-## Screenshots
+</details>
 
+## Screenshots
 <img src="https://files.catbox.moe/yjhubp.png" width=1000/>
 <img src="https://files.catbox.moe/ce7nfc.png" width=1000/>
 <img src="https://files.catbox.moe/gg80xr.png" width=1000/>
 <img src="https://files.catbox.moe/6yn41p.png" width=1000/>
 <img src="https://files.catbox.moe/myud06.png" width=1000/>
-
-
 
 ## Contribute
 
