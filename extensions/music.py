@@ -200,6 +200,23 @@ class MusicPlayerView(discord.ui.View):
 
         await interaction.response.defer()
 
+    @discord.ui.button(emoji="🔀", style=discord.ButtonStyle.gray)
+    async def shuffle(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        player = cast(wavelink.Player, interaction.guild.voice_client)
+
+        if not player:
+            return
+
+        if not player.playing:
+            return
+
+        player.queue.shuffle()
+        button.style = discord.ButtonStyle.green
+
+        await interaction.response.edit_message(view=self)
+
 
 class Music(commands.Cog):
     def __init__(self, bot_: discord.Bot):
@@ -303,23 +320,21 @@ class Music(commands.Cog):
 
         embed = discord.Embed(color=discord.Color.embed_background(), description="")
 
-        embed.add_field(
-            name="Now Playing",
-            value=f"```{format_time(player.current.length)} - {truncate_text(player.current.title, 13)} - {truncate_text(player.current.author, 10)}```",
-            inline=False,
-        )
+        now_playing = f"{format_time(player.current.length)} - {truncate_text(player.current.title, 13)} - {truncate_text(player.current.author, 10)}"
+        now_playing = f"{now_playing: <31}"
+
+        description = f"**Now Playing**\n```{now_playing}```\n"
 
         if len(player.queue) > 0:
             next_track = player.queue[0]
+            next_up = f"{format_time(next_track.length)} - {truncate_text(next_track.title, 13)} - {truncate_text(next_track.author, 10)}"
+            next_up = f"{next_up: <31}"
+            description += f"**Next Up**\n```{next_up}```"
 
-            embed.add_field(
-                name="Next Up",
-                value=f"```{format_time(next_track.length)} - {truncate_text(next_track.title, 13)} - {truncate_text(next_track.author, 10)}```",
-                inline=False,
-            )
+        embed.description = description
 
         if player.current.artwork:
-            embed.set_image(url=player.current.artwork)
+            embed.set_thumbnail(url=player.current.artwork)
 
         await self.update_queue_db(player.channel.guild.id, player)
         await message.edit("", embed=embed)
