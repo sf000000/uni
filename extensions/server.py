@@ -364,7 +364,9 @@ class Server(commands.Cog):
             f"💬 {text_channels} channels | 🔈 {voice_channels} voice channels | "
             f"👤 {roles} roles | 🐸 {emojis} emotes"
         )
-        embed.set_thumbnail(url=ctx.guild.icon.url)
+
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
 
         await ctx.respond(embed=embed)
 
