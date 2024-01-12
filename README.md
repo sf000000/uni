@@ -122,6 +122,7 @@ From basic server management to fun games, music playback, and even AI interacti
 </details>
 
 ## Screenshots
+<img src="./assets/music.png" width=1000/>
 <img src="./assets/purge.png" width=1000/>
 <img src="./assets/minecraft.png" width=1000/>
 <img src="./assets/spotifyrec.png" width=1000/>
