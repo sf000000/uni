@@ -191,6 +191,59 @@ class Twitch(commands.Cog):
         )
         await ctx.respond(embed=embed)
 
+    @_twitch.command(
+        name="send",
+        description="Sends a Twitch notification manually.",
+    )
+    @commands.has_permissions(administrator=True)
+    async def _send(
+        self,
+        ctx: discord.ApplicationContext,
+        channel_name: discord.Option(
+            name="channel",
+            description="The channel to send a notification for.",
+            required=True,
+        ),
+    ):
+        stream_data = await self.get_stream(channel_name)
+        if stream_data:
+            if guild := self.bot.get_guild(ctx.guild.id):
+                if channel := guild.get_channel(ctx.channel.id):
+                    embed = discord.Embed(
+                        description=f"**{stream_data['data'][0]['user_name']}** is now live on Twitch!",
+                        color=config["COLORS"]["BLURPLE"],
+                    )
+                    embed.set_image(
+                        url=stream_data["data"][0]["thumbnail_url"].format(
+                            width=1280, height=720
+                        )
+                    )
+                    embed.add_field(
+                        name="Stream Title",
+                        value=stream_data["data"][0]["title"],
+                    )
+                    embed.add_field(
+                        name="Game",
+                        value=stream_data["data"][0]["game_name"],
+                    )
+                    embed.add_field(
+                        name="Viewers",
+                        value=f"{stream_data['data'][0]['viewer_count']:,}",
+                    )
+                    watch_button = discord.ui.Button(
+                        style=discord.ButtonStyle.link,
+                        label="Watch",
+                        url=f"https://twitch.tv/{channel_name}",
+                    )
+                    view = discord.ui.View()
+                    view.add_item(watch_button)
+
+                    await channel.send(embed=embed, view=view)
+        else:
+            await ctx.respond(
+                f"Could not find a Twitch channel with the name `{channel_name}`."
+            )
+
     @tasks.loop(minutes=2)
     async def check_streams(self):
         async with self.conn.cursor() as cur:
