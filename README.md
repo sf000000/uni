@@ -2,11 +2,9 @@
 
 # Uni - _The Last Multipurpose Bot, Ever_
 
-
 <p align="center">
-    <img src="https://www.amug.com/wp-content/uploads/2016/09/you-logo-here-300x106.png" />
+    <img src="./assets/logo.png" width=200 />
 </p>
-
 
 From basic server management to fun games, music playback, and even AI interactions, Uni has got you covered.
 <p align="center">
@@ -124,11 +122,11 @@ From basic server management to fun games, music playback, and even AI interacti
 </details>
 
 ## Screenshots
-<img src="https://files.catbox.moe/yjhubp.png" width=1000/>
-<img src="https://files.catbox.moe/ce7nfc.png" width=1000/>
-<img src="https://files.catbox.moe/gg80xr.png" width=1000/>
-<img src="https://files.catbox.moe/6yn41p.png" width=1000/>
-<img src="https://files.catbox.moe/myud06.png" width=1000/>
+<img src="./assets/purge.png" width=1000/>
+<img src="./assets/spotifyrec.png" width=1000/>
+<img src="./assets/lastfmnp.png" width=1000/>
+<img src="./assets/lastfmwhois.png" width=1000/>
+<img src="./assets/moviewatch.png" width=1000/>
 
 ## Contribute
 
