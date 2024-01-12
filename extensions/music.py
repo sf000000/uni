@@ -33,7 +33,98 @@ def format_time(time: int) -> str:
 
 
 def truncate_text(text: str, max_length: int) -> str:
-    return text if len(text) <= max_length else text[: max_length - 3] + "..."
+    return text if len(text) <= max_length else f"{text[:max_length - 3]}..."
+
+
+class EffectsSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Nightcore", value="nightcore"),
+            discord.SelectOption(label="Bass Boost", value="bass-boost"),
+            discord.SelectOption(label="8D", value="8d"),
+            discord.SelectOption(label="Slowed & reverb ", value="reverb"),
+            discord.SelectOption(label="Reset", value="reset"),
+        ]
+        super().__init__(
+            placeholder="Apply an effect",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        player = cast(wavelink.Player, interaction.guild.voice_client)
+
+        if not player or not player.connected or not player.playing:
+            return
+
+        filters: wavelink.Filters = player.filters
+
+        if self.values[0] == "nightcore":
+            await self.apply_nightcore(filters, player)
+        elif self.values[0] == "bass-boost":
+            await self.apply_bass_boost(filters, player)
+        elif self.values[0] == "8d":
+            await self.apply_8d(filters, player)
+        elif self.values[0] == "reverb":
+            await self.apply_reverb(filters, player)
+        elif self.values[0] == "reset":
+            filters.reset()
+            await player.set_filters(filters, seek=True)
+
+        await interaction.response.edit_message(view=self.view)
+
+    async def apply_nightcore(self, filters, player):
+        if (
+            filters.timescale.payload.get("pitch") == 1.2
+            and filters.timescale.payload.get("speed") == 1.2
+            and filters.timescale.payload.get("rate") == 1
+        ):
+            filters.reset()
+            await player.set_filters(filters, seek=True)
+            filters.timescale.set(pitch=1.2, speed=1.2, rate=1)
+            await player.set_filters(filters, seek=True)
+
+    async def apply_bass_boost(self, filters, player):
+        if filters.equalizer.payload[0]["gain"] == 0.25:
+            filters.reset()
+            await player.set_filters(filters, seek=True),
+            return
+
+        # TODO improve this
+        filters.equalizer.set(bands=[{"band": 0, "gain": 0.25}])
+        await player.set_filters(filters, seek=True)
+
+    async def apply_8d(self, filters, player):
+        if (
+            filters.timescale.payload.get("pitch") == 1.05
+            and filters.rotation.payload.get("rotationHz") == 0.125
+            and filters.tremolo.payload.get("depth") == 0.3
+            and filters.tremolo.payload.get("frequency") == 14
+        ):
+            filters.reset()
+            await player.set_filters(filters, seek=True),
+            return
+
+        filters.timescale.set(pitch=1.05)
+        filters.tremolo.set(depth=0.3, frequency=14)
+        filters.rotation.set(rotation_hz=0.125)
+        filters.equalizer.set(bands=[{"band": 1, "gain": -0.2}])
+
+        await player.set_filters(filters, seek=True),
+
+    async def apply_reverb(self, filters, player):
+        if (
+            filters.timescale.payload.get("pitch") == 0.8
+            and filters.timescale.payload.get("rate") == 0.9
+            and filters.reverb.payload.get("wet") == 0.35
+        ):
+            filters.reset()
+            await player.set_filters(filters, seek=True),
+            return
+
+        filters.timescale.set(pitch=0.8, rate=0.9)
+        await player.set_filters(filters, seek=True),
 
 
 class MusicPlayerView(discord.ui.View):
@@ -54,6 +145,9 @@ class MusicPlayerView(discord.ui.View):
             url=f"{config['web_url']}/queue/{player.ctx.guild.id}",
         )
         self.add_item(queue_button)
+
+        select_menu = EffectsSelect()
+        self.add_item(select_menu)
 
     @discord.ui.button(label="Pause", style=discord.ButtonStyle.gray)
     async def pause_resume(
@@ -143,19 +237,17 @@ class Music(commands.Cog):
             "artwork": player.current.artwork,
         }
 
-        upcoming_tracks = []
-        for index, track in enumerate(player.queue):
-            upcoming_tracks.append(
-                {
-                    "index": index + 1,
-                    "title": track.title,
-                    "author": track.author,
-                    "length": format_time(track.length),
-                    "uri": track.uri,
-                    "artwork": track.artwork,
-                }
-            )
-
+        upcoming_tracks = [
+            {
+                "index": index + 1,
+                "title": track.title,
+                "author": track.author,
+                "length": format_time(track.length),
+                "uri": track.uri,
+                "artwork": track.artwork,
+            }
+            for index, track in enumerate(player.queue)
+        ]
         tracks_dict = {
             "guildId": str(guild_id),
             "current_track": current_track,
@@ -232,13 +324,13 @@ class Music(commands.Cog):
         await self.update_queue_db(player.channel.guild.id, player)
         await message.edit("", embed=embed)
 
-    @commands.Cog.listener()
-    async def on_wavelink_player_update(
-        self, payload: wavelink.PlayerUpdateEventPayload
-    ) -> None:
-        if payload.player is None or not payload.connected:
-            return
-        self.db_manager.delete_queue(str(payload.player.channel.guild.id))
+    # @commands.Cog.listener()
+    # async def on_wavelink_player_update(
+    #     self, payload: wavelink.PlayerUpdateEventPayload
+    # ) -> None:
+    #     if payload.player is None or not payload.connected:
+    #         return
+    #     self.db_manager.delete_queue(str(payload.player.channel.guild.id))
 
     async def voice_channel_autocomplete(
         self, ctx: discord.AutocompleteContext
