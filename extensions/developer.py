@@ -158,35 +158,6 @@ class Developer(commands.Cog):
             await ctx.respond(f"```py\n{e}\n```")
 
     @_dev.command(
-        name="rawembed",
-        description="Sends an embed from a message as raw JSON.",
-    )
-    async def _rawembed(
-        self,
-        ctx: discord.ApplicationContext,
-        message_id: discord.Option(
-            str, "The ID of the message to get the embed from.", required=True
-        ),
-    ):
-        message = await ctx.channel.fetch_message(int(message_id))
-
-        if not message.embeds:
-            raise commands.CommandInvokeError("This message does not have an embed.")
-
-        embed = message.embeds[0]
-        embed_dict = embed.to_dict()
-        embed_json = json.dumps(embed_dict, indent=4)
-
-        with open("embed.json", "w") as f:
-            f.write(embed_json)
-
-        await ctx.respond(
-            file=discord.File("embed.json", filename="embed.json"),
-        )
-
-        os.remove("embed.json")
-
-    @_dev.command(
         name="disablecommand",
         description="Disables a command in the current guild.",
     )
