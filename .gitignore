@@ -238,3 +238,5 @@ Lavalink.jar
 chromedriver
 logs/
 startup.sh
+plugins/
+temp
