@@ -320,21 +320,44 @@ class Music(commands.Cog):
 
         embed = discord.Embed(color=discord.Color.embed_background(), description="")
 
-        now_playing = f"{format_time(player.current.length)} - {truncate_text(player.current.title, 13)} - {truncate_text(player.current.author, 10)}"
+        now_playing = f"{format_time(player.current.length)} - " + (
+            f"{truncate_text(player.current.title, 13)}"
+            if player.current.source != "youtube"
+            else player.current.title
+        )
+        now_playing += (
+            f" - {truncate_text(player.current.author, 10)}"
+            if player.current.source != "youtube"
+            else ""
+        )
         now_playing = f"{now_playing: <31}"
 
         description = f"**Now Playing**\n```{now_playing}```\n"
 
         if len(player.queue) > 0:
             next_track = player.queue[0]
-            next_up = f"{format_time(next_track.length)} - {truncate_text(next_track.title, 13)} - {truncate_text(next_track.author, 10)}"
+            next_up = f"{format_time(next_track.length)} - " + (
+                f"{truncate_text(next_track.title, 13)}"
+                if next_track.source != "youtube"
+                else next_track.title
+            )
+            next_up += (
+                f" - {truncate_text(next_track.author, 10)}"
+                if next_track.source != "youtube"
+                else ""
+            )
             next_up = f"{next_up: <31}"
             description += f"**Next Up**\n```{next_up}```"
 
         embed.description = description
 
         if player.current.artwork:
-            embed.set_thumbnail(url=player.current.artwork)
+            embed_method = (
+                embed.set_image
+                if player.current.source == "youtube"
+                else embed.set_thumbnail
+            )
+            embed_method(url=player.current.artwork)
 
         await self.update_queue_db(player.channel.guild.id, player)
         await message.edit("", embed=embed)
