@@ -52,8 +52,8 @@ class EffectsSelect(discord.ui.Select):
         )
         self.effect_emojis = {
             "bass-boost": "🔊",
-            "8d": "🎧",
-            "reverb": "🐢",
+            "8d": "🌀",
+            "reverb": "🐌",
             "reset": "",
         }
         self.active_effects = []
@@ -85,7 +85,7 @@ class EffectsSelect(discord.ui.Select):
                 embed.set_field_at(
                     -1,
                     name="Effects",
-                    value=", ".join(self.active_effects),
+                    value=" ➔ ".join(self.active_effects),
                     inline=False,
                 )
             else:
@@ -370,6 +370,28 @@ class Music(commands.Cog):
 
         embed.description = description
 
+        filters: wavelink.Filters = player.filters
+        active_effects = []
+        if filters.equalizer.payload[0]["gain"] == 1:
+            active_effects.append("🔊")
+        if (
+            filters.rotation.payload.get("rotationHz") == 0.125
+            and filters.tremolo.payload.get("depth") == 0.3
+            and filters.tremolo.payload.get("frequency") == 14
+        ):
+            active_effects.append("🌀")
+        if (
+            filters.timescale.payload.get("pitch") == 0.8
+            and filters.timescale.payload.get("rate") == 0.9
+            and filters.reverb.payload.get("wet") == 0.35
+        ):
+            active_effects.append("🐌")
+
+        if active_effects:
+            embed.add_field(
+                name="Effects", value=" ➔ ".join(active_effects), inline=False
+            )
+
         if player.current.artwork:
             embed_method = (
                 embed.set_image
@@ -380,14 +402,7 @@ class Music(commands.Cog):
 
         await self.update_queue_db(player.channel.guild.id, player)
         await message.edit("", embed=embed)
-
-    # @commands.Cog.listener()
-    # async def on_wavelink_player_update(
-    #     self, payload: wavelink.PlayerUpdateEventPayload
-    # ) -> None:
-    #     if payload.player is None or not payload.connected:
-    #         return
-    #     self.db_manager.delete_queue(str(payload.player.channel.guild.id))
+        await message.edit("", embed=embed)
 
     async def voice_channel_autocomplete(
         self, ctx: discord.AutocompleteContext
@@ -483,12 +498,13 @@ class Music(commands.Cog):
         if not tracks:
             return await ctx.reply("No tracks were found.", ephemeral=True)
 
-        view = MusicPlayerView(player, self.bot, self.playing_messages)
+        self.view = MusicPlayerView(player, self.bot, self.playing_messages)
 
         if isinstance(tracks, wavelink.Playlist):
             if player.playing:
                 response = await ctx.respond(
-                    f"Queued **{tracks.name}** (**{len(tracks)}** tracks)", view=view
+                    f"Queued **{tracks.name}** (**{len(tracks)}** tracks)",
+                    view=self.view,
                 )
                 self.playing_messages[ctx.guild.id] = {
                     "message_id": response.id,
@@ -498,7 +514,8 @@ class Music(commands.Cog):
                 await player.queue.put_wait(tracks)
             else:
                 response = await ctx.respond(
-                    f"Playing **{tracks.name}** (**{len(tracks)}** tracks)", view=view
+                    f"Playing **{tracks.name}** (**{len(tracks)}** tracks)",
+                    view=self.view,
                 )
                 self.playing_messages[ctx.guild.id] = {
                     "message_id": response.id,
