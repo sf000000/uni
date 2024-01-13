@@ -437,18 +437,6 @@ class Music(commands.Cog):
         except Exception as e:
             await ctx.respond(f"An error occurred: {e}")
 
-    @discord.slash_command(name="stop", description="Leaves a voice channel.")
-    async def stop_voice(self, ctx: discord.ApplicationContext):
-        if not ctx.voice_client:
-            return await ctx.respond(
-                "I'm not connected to a voice channel.",
-                ephemeral=True,
-                delete_after=10,
-            )
-
-        await ctx.voice_client.disconnect()
-        return await ctx.respond("Disconnected!", ephemeral=True, delete_after=10)
-
     @discord.slash_command(name="play", description="Plays a song/playlist.")
     async def play_music(
         self,
