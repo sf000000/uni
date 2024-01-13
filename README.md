@@ -10,8 +10,7 @@ From basic server management to fun games, music playback, and even AI interacti
   <!-- You can add your badges here -->
   <!-- If you have never added badges, head over to https://img.shields.io/badges/static-badge, follow the instructions and generate URL links to add below -->
   <img src="https://img.shields.io/github/stars/notjawad/uni"  />
-  <img src="https://img.shields.io/github/forks/notjawad/uni"  />
-  <img src="https://img.shields.io/pypi/pyversions/py-cord"  />
+  <img src="https://img.shields.io/github/issues/notjawad/uni"  />
   <img src="https://img.shields.io/badge/LICENSE-MIT-green"  />
 </p>
 
