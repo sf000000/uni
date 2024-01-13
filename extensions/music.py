@@ -50,6 +50,13 @@ class EffectsSelect(discord.ui.Select):
             max_values=1,
             options=options,
         )
+        self.effect_emojis = {
+            "bass-boost": "🔊",
+            "8d": "🎧",
+            "reverb": "🐢",
+            "reset": "",
+        }
+        self.active_effects = []
 
     async def callback(self, interaction: discord.Interaction):
         player = cast(wavelink.Player, interaction.guild.voice_client)
@@ -58,18 +65,45 @@ class EffectsSelect(discord.ui.Select):
             return
 
         filters: wavelink.Filters = player.filters
+        selected_effect = self.values[0]
 
-        if self.values[0] == "bass-boost":
+        embed = interaction.message.embeds[0]
+
+        if selected_effect == "reset":
+            self.active_effects = []
+            if len(embed.fields) > 0 and embed.fields[-1].name == "Effects":
+                embed.remove_field(-1)
+        else:
+            if self.effect_emojis[selected_effect] in self.active_effects:
+                await interaction.response.send_message(
+                    "This effect is already active.", ephemeral=True
+                )
+                return
+
+            self.active_effects.append(self.effect_emojis[selected_effect])
+            if len(embed.fields) > 0 and embed.fields[-1].name == "Effects":
+                embed.set_field_at(
+                    -1,
+                    name="Effects",
+                    value=", ".join(self.active_effects),
+                    inline=False,
+                )
+            else:
+                embed.add_field(
+                    name="Effects", value=" ".join(self.active_effects), inline=False
+                )
+
+        if selected_effect == "bass-boost":
             await self.apply_bass_boost(filters, player)
-        elif self.values[0] == "8d":
+        elif selected_effect == "8d":
             await self.apply_8d(filters, player)
-        elif self.values[0] == "reverb":
+        elif selected_effect == "reverb":
             await self.apply_reverb(filters, player)
-        elif self.values[0] == "reset":
+        elif selected_effect == "reset":
             filters.reset()
             await player.set_filters(filters, seek=True)
 
-        await interaction.response.edit_message(view=self.view)
+        await interaction.response.edit_message(embed=embed, view=self.view)
 
     async def apply_bass_boost(self, filters, player):
         if filters.equalizer.payload[0]["gain"] == 1:
