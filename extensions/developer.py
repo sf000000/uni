@@ -1,7 +1,6 @@
 import discord
 import aiosqlite
 import yaml
-import json
 import os
 import datetime
 import ast

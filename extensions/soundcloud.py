@@ -4,7 +4,7 @@ import yaml
 import aiohttp
 import datetime
 
-from discord.ext import commands, tasks
+from discord.ext import commands
 
 
 def load_config():
