@@ -3,7 +3,6 @@ import aiosqlite
 import yaml
 import aiohttp
 import spotipy
-import datetime
 
 
 from discord.ext import commands
@@ -514,65 +513,6 @@ class LastFM(commands.Cog):
     _spotify = discord.commands.SlashCommandGroup(
         name="spotify", description="Spotify related commands."
     )
-
-    @_spotify.command(
-        name="import",
-        description="Import your Spotify playlists to use when playing music. ",
-    )
-    async def spotify_import(self, ctx: discord.ApplicationContext, username: str):
-        playlists = sp.user_playlists(username)
-        MAX_PLAYLISTS = 25
-
-        if len(playlists["items"]) == 0:
-            return await ctx.respond(
-                "No playlists found for that user.", ephemeral=True
-            )
-
-        embed = discord.Embed(
-            description=f"Importing {len(playlists['items'][:MAX_PLAYLISTS])} playlists from {username}",
-            color=config["COLORS"]["SUCCESS"],
-        )
-
-        message = await ctx.respond(embed=embed)
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "CREATE TABLE IF NOT EXISTS spotify_playlists (guild_id INTEGER, user_id INTEGER, playlist_id TEXT)"
-            )
-
-            await cur.execute(
-                "SELECT 1 FROM spotify_playlists WHERE guild_id = ? AND user_id = ?",
-                (ctx.guild.id, ctx.author.id),
-            )
-
-            if await cur.fetchone():
-                await cur.execute(
-                    "DELETE FROM spotify_playlists WHERE guild_id = ? AND user_id = ?",
-                    (ctx.guild.id, ctx.author.id),
-                )
-
-            playlist_names = []
-            for i, playlist in enumerate(playlists["items"][:MAX_PLAYLISTS], start=1):
-                await cur.execute(
-                    "INSERT INTO spotify_playlists (guild_id, user_id, playlist_id) VALUES (?, ?, ?)",
-                    (ctx.guild.id, ctx.author.id, playlist["id"]),
-                )
-
-                playlist_names.append(
-                    f"{datetime.datetime.now().strftime('%H:%M:%S')} - Imported {playlist['name']}"
-                )
-                playlist_names = playlist_names[-5:]
-
-                if i % 2 == 0:
-                    desc = "\n".join(playlist_names)
-                    embed.description = f"```{desc}```"
-                    await message.edit_original_response(embed=embed)
-
-            await message.edit_original_response(
-                content="Successfully imported Spotify playlists.",
-            )
-
-        await self.conn.commit()
 
     @_spotify.command(
         name="search",
