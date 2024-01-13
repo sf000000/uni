@@ -25,6 +25,7 @@ class Bot(commands.AutoShardedBot):
             activity=discord.Game(name=config["STATUS"]),
             status=config["STATUS_TYPE"],
         )
+        self.disabled_extensions = []
 
         extensions_dir = "extensions"
         for filename in os.listdir(extensions_dir):
@@ -32,9 +33,9 @@ class Bot(commands.AutoShardedBot):
                 extension = f"{extensions_dir}.{filename[:-3]}"
                 print(f"Loading extension {Fore.GREEN}{extension}{Style.RESET_ALL}")
                 try:
-                    self.load_extension(extension) if extension not in [
-                        "extensions.github"
-                    ] else None
+                    self.load_extension(
+                        extension
+                    ) if extension not in self.extensions else None
                 except Exception as e:
                     print(
                         f"Failed to load extension {Fore.RED}{extension}{Style.RESET_ALL}: {Fore.RED}{e}{Style.RESET_ALL}"
