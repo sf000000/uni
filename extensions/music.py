@@ -496,7 +496,7 @@ class Music(commands.Cog):
         player.ctx = ctx
 
         if not tracks:
-            return await ctx.reply("No tracks were found.", ephemeral=True)
+            return await ctx.respond("No tracks were found.", ephemeral=True)
 
         self.view = MusicPlayerView(player, self.bot, self.playing_messages)
 
