@@ -39,7 +39,6 @@ def truncate_text(text: str, max_length: int) -> str:
 class EffectsSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="Nightcore", value="nightcore"),
             discord.SelectOption(label="Bass Boost", value="bass-boost"),
             discord.SelectOption(label="8D", value="8d"),
             discord.SelectOption(label="Slowed & reverb ", value="reverb"),
@@ -60,9 +59,7 @@ class EffectsSelect(discord.ui.Select):
 
         filters: wavelink.Filters = player.filters
 
-        if self.values[0] == "nightcore":
-            await self.apply_nightcore(filters, player)
-        elif self.values[0] == "bass-boost":
+        if self.values[0] == "bass-boost":
             await self.apply_bass_boost(filters, player)
         elif self.values[0] == "8d":
             await self.apply_8d(filters, player)
@@ -74,31 +71,19 @@ class EffectsSelect(discord.ui.Select):
 
         await interaction.response.edit_message(view=self.view)
 
-    async def apply_nightcore(self, filters, player):
-        if (
-            filters.timescale.payload.get("pitch") == 1.2
-            and filters.timescale.payload.get("speed") == 1.2
-            and filters.timescale.payload.get("rate") == 1
-        ):
-            filters.reset()
-            await player.set_filters(filters, seek=True)
-            filters.timescale.set(pitch=1.2, speed=1.2, rate=1)
-            await player.set_filters(filters, seek=True)
-
     async def apply_bass_boost(self, filters, player):
-        if filters.equalizer.payload[0]["gain"] == 0.25:
+        if filters.equalizer.payload[0]["gain"] == 1:
             filters.reset()
             await player.set_filters(filters, seek=True),
             return
 
         # TODO improve this
-        filters.equalizer.set(bands=[{"band": 0, "gain": 0.25}])
+        filters.equalizer.set(bands=[{"band": 0, "gain": 1}])
         await player.set_filters(filters, seek=True)
 
     async def apply_8d(self, filters, player):
         if (
-            filters.timescale.payload.get("pitch") == 1.05
-            and filters.rotation.payload.get("rotationHz") == 0.125
+            filters.rotation.payload.get("rotationHz") == 0.125
             and filters.tremolo.payload.get("depth") == 0.3
             and filters.tremolo.payload.get("frequency") == 14
         ):
