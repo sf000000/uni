@@ -42,6 +42,7 @@ class EffectsSelect(discord.ui.Select):
             discord.SelectOption(label="Bass Boost", value="bass-boost"),
             discord.SelectOption(label="8D", value="8d"),
             discord.SelectOption(label="Slowed & reverb ", value="reverb"),
+            discord.SelectOption(label="Speed up", value="speed-up"),
             discord.SelectOption(label="Reset", value="reset"),
         ]
         super().__init__(
@@ -51,9 +52,10 @@ class EffectsSelect(discord.ui.Select):
             options=options,
         )
         self.effect_emojis = {
-            "bass-boost": "🔊",
-            "8d": "🌀",
-            "reverb": "🐌",
+            "bass-boost": "<:volume:1195610066901028975>",
+            "8d": "<:spiral:1195609586074398860>",
+            "reverb": "<:hourglass:1195609480801558568>",
+            "speed-up": "<:speed:1195609908171780176>",
             "reset": "",
         }
         self.active_effects = []
@@ -85,7 +87,7 @@ class EffectsSelect(discord.ui.Select):
                 embed.set_field_at(
                     -1,
                     name="Effects",
-                    value=" ➔ ".join(self.active_effects),
+                    value=" | ".join(self.active_effects),
                     inline=False,
                 )
             else:
@@ -99,6 +101,9 @@ class EffectsSelect(discord.ui.Select):
             await self.apply_8d(filters, player)
         elif selected_effect == "reverb":
             await self.apply_reverb(filters, player)
+        elif selected_effect == "speed-up":
+            filters.timescale.set(rate=1.2)
+            await player.set_filters(filters, seek=True)
         elif selected_effect == "reset":
             filters.reset()
             await player.set_filters(filters, seek=True)
@@ -373,23 +378,26 @@ class Music(commands.Cog):
         filters: wavelink.Filters = player.filters
         active_effects = []
         if filters.equalizer.payload[0]["gain"] == 1:
-            active_effects.append("🔊")
+            active_effects.append("<:volume:1195610066901028975>")
         if (
             filters.rotation.payload.get("rotationHz") == 0.125
             and filters.tremolo.payload.get("depth") == 0.3
             and filters.tremolo.payload.get("frequency") == 14
         ):
-            active_effects.append("🌀")
+            active_effects.append("<:spiral:1195609586074398860>")
         if (
             filters.timescale.payload.get("pitch") == 0.8
             and filters.timescale.payload.get("rate") == 0.9
             and filters.reverb.payload.get("wet") == 0.35
         ):
-            active_effects.append("🐌")
+            active_effects.append("<:hourglass:1195609480801558568>")
+
+        if filters.timescale.payload.get("rate") == 1.2:
+            active_effects.append("<:speed:1195609908171780176>")
 
         if active_effects:
             embed.add_field(
-                name="Effects", value=" ➔ ".join(active_effects), inline=False
+                name="Effects", value=" | ".join(active_effects), inline=False
             )
 
         if player.current.artwork:
