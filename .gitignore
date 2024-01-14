@@ -235,7 +235,7 @@ kino.db-journal
 start.bat
 application.yml
 Lavalink.jar
-chromedriver
+chromedriver.exe
 logs/
 startup.sh
 plugins/

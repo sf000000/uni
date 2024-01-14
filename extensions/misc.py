@@ -1,7 +1,6 @@
 import discord
 import aiosqlite
 import yaml
-import uwuify
 import aiohttp
 import os, json
 
@@ -74,17 +73,6 @@ class Misc(commands.Cog):
                         )
                         await message.channel.send(embed=embed, delete_after=5)
         await self.conn.commit()
-
-    @discord.slash_command(
-        name="uwu",
-        description="Uwuify text",
-    )
-    async def uwuify(
-        self,
-        ctx: discord.ApplicationContext,
-        text=discord.Option(str, "Text to uwuify", required=True),
-    ):
-        await ctx.respond(uwuify.uwu(text, flags=uwuify.SMILEY))
 
     @discord.slash_command(
         name="quickpoll",
