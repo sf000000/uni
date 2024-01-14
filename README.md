@@ -123,9 +123,10 @@ From basic server management to fun games, music playback, and even AI interacti
 
 </details>
 
-## Screenshots
-
+<details>
+  <summary>View Screenshots</summary>
 <img src="./assets/music.png" width=1000/>
+<img src="./assets/queue.png" width=1000/>
 <img src="./assets/purge.png" width=1000/>
 <img src="./assets/git.png" width=1000/>
 <img src="./assets/minecraft.png" width=1000/>
@@ -133,6 +134,7 @@ From basic server management to fun games, music playback, and even AI interacti
 <img src="./assets/lastfmnp.png" width=1000/>
 <img src="./assets/lastfmwhois.png" width=1000/>
 <img src="./assets/moviewatch.png" width=1000/>
+</details>
 
 ## Contribute
 
