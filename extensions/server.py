@@ -9,7 +9,7 @@ import pytz
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -123,18 +123,16 @@ class Server(commands.Cog):
                 if member.avatar
                 else "https://files.catbox.moe/hg13w4.png"
             )
-            formatted_url = f"https://uni-styles.vercel.app/welcome-card/{member.name}/{member.guild.name}/{member.guild.member_count}?avatarUrl={avatar_url}"
+            formatted_url = f"https://uni-ui.vercel.app/welcome?displayName={member.name}&userId={member.id}&userAvatar={avatar_url}&guildName={member.guild.name}&memberCount={member.guild.member_count}"
 
             async def run_selenium():
                 options = Options()
                 options.add_argument("--headless")
                 options.add_argument("--no-sandbox")
                 options.add_argument("--incognito")
-                options.add_experimental_option("detach", True)
-                options.add_experimental_option("excludeSwitches", ["enable-logging"])
-                options.add_argument("--window-size=1280,720")
+                options.add_argument("--window-size=2560,1440")
 
-                driver = webdriver.Chrome(options=options)
+                driver = webdriver.Firefox(options=options)
                 driver.get(formatted_url)
 
                 try:
