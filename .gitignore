@@ -236,6 +236,7 @@ start.bat
 application.yml
 Lavalink.jar
 chromedriver.exe
+geckodriver.exe
 logs/
 startup.sh
 plugins/
