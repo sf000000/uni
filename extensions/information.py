@@ -11,6 +11,7 @@ import psutil
 from discord.ext import commands, tasks
 from colorthief import ColorThief
 from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
+from helpers.top_gg import TopGGManager
 
 
 def load_config():
@@ -29,6 +30,7 @@ class Information(commands.Cog):
         self.bot.loop.create_task(self.setup_db())
         self.check_reminders.start()
         self.bot_started = datetime.datetime.now()
+        self.top_gg = TopGGManager(config["top_gg"]["api_token"])
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -734,9 +736,30 @@ class Information(commands.Cog):
         description="Vote for the bot on top.gg.",
     )
     async def vote(self, ctx: discord.ApplicationContext):
-        await ctx.respond(
-            "Vote for Uni on top.gg: <https://top.gg/bot/1181586708865744926/vote>"
+        embed = discord.Embed(
+            title="Vote for Uni",
+            description="Uni is a multipurpose Discord bot.",
+            color=discord.Color.embed_background(),
         )
+
+        recent_votes = await self.top_gg.get_last_1000_votes(bot_id=self.bot.user.id)
+        recent_votes_str = "\n".join(
+            [
+                f"{index + 1}. {vote['username']}"
+                for index, vote in enumerate(recent_votes[:10])
+            ]
+        )
+        embed.add_field(name="Recent Votes", value=f"```{recent_votes_str}```")
+
+        vote_button = discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            label="Vote",
+            url=f"https://top.gg/bot/{self.bot.user.id}/vote",
+        )
+        view = discord.ui.View()
+        view.add_item(vote_button)
+
+        await ctx.respond(embed=embed, view=view)
 
     @tasks.loop(minutes=1)
     async def check_reminders(self):
@@ -754,7 +777,6 @@ class Information(commands.Cog):
             )
             if reminder_timestamp < datetime.datetime.now(datetime.timezone.utc):
                 user = await self.bot.fetch_user(reminder[1])
-                guild = self.bot.get_guild(reminder[2])
                 await user.send(
                     f"Reminder for <t:{int(reminder_timestamp.timestamp())}:R>:\n{reminder[4]}"
                 )
