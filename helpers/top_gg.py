@@ -33,29 +33,35 @@ class TopGGManager:
             params["fields"] = fields
 
         async with httpx.AsyncClient() as client:
-            response = await self._get_request(client, "bots", params=params)
+            response = await self._get_request(
+                client, "bots", params=params, timeout=30
+            )
         return response.json()
 
     async def find_bot(self, bot_id: str) -> Dict:
         async with httpx.AsyncClient() as client:
-            response = await self._get_request(client, f"bots/{bot_id}")
+            response = await self._get_request(client, f"bots/{bot_id}", timeout=30)
         return response.json()
 
     async def get_last_1000_votes(self, bot_id: str) -> List[Dict[str, str]]:
         async with httpx.AsyncClient() as client:
-            response = await self._get_request(client, f"bots/{bot_id}/votes")
+            response = await self._get_request(
+                client, f"bots/{bot_id}/votes", timeout=30
+            )
         return response.json()
 
     async def get_bot_stats(self, bot_id: str) -> Dict:
         async with httpx.AsyncClient() as client:
-            response = await self._get_request(client, f"bots/{bot_id}/stats")
+            response = await self._get_request(
+                client, f"bots/{bot_id}/stats", timeout=30
+            )
         return response.json()
 
     async def check_user_vote(self, bot_id: str, user_id: str) -> Dict[str, int]:
         params = {"userId": user_id}
         async with httpx.AsyncClient() as client:
             response = await self._get_request(
-                client, f"bots/{bot_id}/check", params=params
+                client, f"bots/{bot_id}/check", params=params, timeout=30
             )
         return response.json()
 
@@ -82,10 +88,16 @@ class TopGGManager:
         return response.json()
 
     async def _get_request(
-        self, client: httpx.AsyncClient, endpoint: str, params: Optional[Dict] = None
+        self,
+        client: httpx.AsyncClient,
+        endpoint: str,
+        params: Optional[Dict] = None,
+        timeout: Optional[float] = None,
     ) -> httpx.Response:
         url = f"{self.api_base_url}{endpoint}"
-        response = await client.get(url, params=params, headers=self.headers)
+        response = await client.get(
+            url, params=params, headers=self.headers, timeout=timeout
+        )
         response.raise_for_status()
         return response
 
