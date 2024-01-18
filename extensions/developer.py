@@ -6,11 +6,16 @@ import datetime
 import ast
 import time
 import re
-import base64
+import pandas as pd
 
-from helpers.selenium_manager import SeleniumManager
+from matplotlib import pyplot as plt
 from discord.ext import commands
-from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info
+from helpers.utils import (
+    iso_to_discord_timestamp,
+    fetch_latest_commit_info,
+    create_bar_chart,
+    set_seaborn_style,
+)
 
 
 def load_config():
@@ -459,33 +464,54 @@ class Developer(commands.Cog):
     )
     async def usage(self, ctx: discord.ApplicationContext):
         await ctx.defer()
+
+        query = "SELECT command, COUNT(*) FROM command_usage GROUP BY command"
+
         async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT command, COUNT(*) FROM command_usage GROUP BY command"
-            )
+            await cur.execute(query)
             results = await cur.fetchall()
 
         if not results:
             return await ctx.respond("No commands have been used.")
 
-        command_usage = []
-        for command, count in results:
-            command_usage.append({"name": command, "size": count})
+        command_usage = [
+            {"name": f"/{command}", "size": count} for command, count in results
+        ]
+        command_usage = sorted(command_usage, key=lambda x: x["size"], reverse=True)[
+            :20
+        ]
 
-        command_usage = sorted(command_usage, key=lambda x: x["size"], reverse=True)
-        command_usage = base64.b64encode(str(command_usage).encode("utf-8")).decode(
-            "utf-8"
+        background_color = "#2F195F"
+        grid_color = "#582FB1"
+        text_color = "#eee"
+        font_family = "sans-serif"
+
+        set_seaborn_style(font_family, background_color, grid_color, text_color)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.set_title("Command Usage")
+        ax.set_xlabel("Times Used")
+        ax.set_ylabel("Command")
+        ax.set_facecolor(background_color)
+        ax.grid(color=grid_color)
+        ax.tick_params(axis="x", colors=text_color)
+        ax.tick_params(axis="y", colors=text_color)
+
+        ax = create_bar_chart(
+            pd.Series(
+                [cmd["size"] for cmd in command_usage],
+                index=[cmd["name"] for cmd in command_usage],
+            ),
+            ax,
         )
 
-        url = "https://uni-ui.vercel.app/command-usage?commands=" + command_usage
+        plt.tight_layout()
 
-        selenium_manager = SeleniumManager(url=url)
+        filename = "command_usage.png"
+        plt.savefig(filename, facecolor=background_color)
 
-        await selenium_manager.screenshot_element("capture", "command_usage.png")
-        await ctx.respond(
-            file=discord.File("command_usage.png"),
-        )
-        os.remove("command_usage.png")
+        await ctx.respond(file=discord.File(filename))
+        os.remove(filename)
 
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
