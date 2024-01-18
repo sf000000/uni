@@ -1,13 +1,15 @@
 import discord
 import yaml
 import aiohttp
-import io
+import io, os
 import datetime
 import pytz
 import aiosqlite
 import platform
 import psutil
+import base64
 
+from helpers.selenium_manager import SeleniumManager
 from discord.ext import commands, tasks
 from colorthief import ColorThief
 from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
@@ -736,20 +738,32 @@ class Information(commands.Cog):
         description="Vote for the bot on top.gg.",
     )
     async def vote(self, ctx: discord.ApplicationContext):
-        embed = discord.Embed(
-            title="Vote for Uni",
-            description="Uni is a multipurpose Discord bot.",
-            color=discord.Color.embed_background(),
-        )
+        await ctx.defer()
 
-        recent_votes = await self.top_gg.get_last_1000_votes(bot_id=self.bot.user.id)
-        recent_votes_str = "\n".join(
-            [
-                f"{index + 1}. {vote['username']}"
-                for index, vote in enumerate(recent_votes[:10])
-            ]
-        )
-        embed.add_field(name="Recent Votes", value=f"```{recent_votes_str}```")
+        recent_voters = await self.top_gg.get_last_1000_votes(bot_id=ctx.bot.user.id)
+        bot_info = await self.top_gg.find_bot(bot_id=ctx.bot.user.id)
+
+        info = {
+            "defAvatar": bot_info["defAvatar"],
+            "invite": bot_info["invite"],
+            "github": bot_info["github"],
+            "shortdesc": bot_info["shortdesc"],
+            "prefix": bot_info["prefix"],
+            "avatar": bot_info["avatar"],
+            "id": bot_info["id"],
+            "discriminator": bot_info["discriminator"],
+            "username": bot_info["username"],
+            "server_count": bot_info["server_count"],
+            "points": bot_info["points"],
+            "tags": bot_info["tags"],
+            "recentVotes": recent_voters,
+        }
+        info = base64.b64encode(str(info).encode("utf-8")).decode("utf-8")
+
+        url = "https://uni-ui.vercel.app/vote?info=" + info
+        selenium_manager = SeleniumManager(url=url)
+
+        image = await selenium_manager.screenshot_element("capture", "vote_image.png")
 
         vote_button = discord.ui.Button(
             style=discord.ButtonStyle.link,
@@ -759,7 +773,8 @@ class Information(commands.Cog):
         view = discord.ui.View()
         view.add_item(vote_button)
 
-        await ctx.respond(embed=embed, view=view)
+        await ctx.respond(file=discord.File(image), view=view)
+        os.remove(image)
 
     @tasks.loop(minutes=1)
     async def check_reminders(self):
