@@ -5,6 +5,9 @@ import time
 import aiohttp
 import os
 import pytz
+import base64
+import cloudinary
+import cloudinary.uploader
 
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
@@ -13,6 +16,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from helpers.selenium_manager import SeleniumManager
 
 
 def load_config():
@@ -31,6 +35,12 @@ class Server(commands.Cog):
         self.bot.loop.create_task(self.setup_db())
         self.update_voice_stats.start()
         self.voice_update_loop.start()
+
+        cloudinary.config(
+            cloud_name=config["cloudinary"]["cloud_name"],
+            api_key=config["cloudinary"]["api_key"],
+            api_secret=config["cloudinary"]["api_secret"],
+        )
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -518,13 +528,20 @@ class Server(commands.Cog):
         except Exception as e:
             await ctx.respond(f"An error occurred: {e}", ephemeral=True)
 
-    @tasks.loop(seconds=30)
+    @tasks.loop(minutes=5)
     async def update_voice_stats(self):
         await self.bot.wait_until_ready()
-        rows = await self.fetch_voice_stats()
 
-        for guild_id, channel_id, message_id in rows:
-            await self.update_guild_stats(guild_id, channel_id, message_id)
+        cloudinary.uploader.destroy("voice_leaderboard")
+
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT guild_id, channel_id, message_id FROM voice_stats WHERE enabled = 1"
+            )
+            rows = await cur.fetchall()
+
+            for guild_id, channel_id, message_id in rows:
+                await self.update_guild_stats(guild_id, channel_id, message_id)
 
     async def fetch_voice_stats(self):
         async with self.conn.cursor() as cur:
@@ -536,61 +553,41 @@ class Server(commands.Cog):
     async def update_guild_stats(self, guild_id: int, channel_id: int, message_id: int):
         guild = self.bot.get_guild(guild_id)
         if guild and message_id:
-            top_users = await self.fetch_top_users(guild_id)
-            embed = self.create_embed(top_users, guild)
+            embed = discord.Embed(
+                color=config["COLORS"]["DEFAULT"],
+            )
+
+        async with self.conn.cursor() as cur:
+            await cur.execute("SELECT * FROM user_voice_stats")
+            user_voice_stats = await cur.fetchall()
+
+            user_voice_stats.sort(key=lambda x: x[2], reverse=True)
+            top_5_users = user_voice_stats[:5]
+
+            users = []
+            for user in top_5_users:
+                users.append(
+                    {"name": user[4], "duration": user[2], "avatar_url": user[3]}
+                )
+
+            users = base64.b64encode(str(users).encode("utf-8")).decode("utf-8")
+
+            url = "https://uni-ui.vercel.app/voice-leaderboard?users=" + users
+
+            selenium_manager = SeleniumManager(url=url)
+
+            leaderboard = selenium_manager.screenshot_element(
+                "capture", "voice_leaderboard.png"
+            )
+
+            image = cloudinary.uploader.upload(
+                leaderboard, public_id="voice_leaderboard", overwrite=True
+            )["url"]
+
+            embed.set_image(url=image)
             await self.update_message(embed, guild, channel_id, message_id)
 
-    async def fetch_top_users(self, guild_id: int):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                """
-                SELECT user_id, voice_duration FROM user_voice_stats
-                WHERE guild_id = ? ORDER BY voice_duration DESC LIMIT 10
-                """,
-                (guild_id,),
-            )
-            return await cur.fetchall()
-
-    def create_embed(self, top_users: list, guild: discord.Guild):
-        embed = discord.Embed(
-            title="`Voice Activity Leaderboard`",
-            color=config["COLORS"]["DEFAULT"],
-        )
-
-        for index, (user_id, voice_duration) in enumerate(top_users, start=1):
-            if member := guild.get_member(user_id):
-                name = self.format_name(member, index)
-                formatted_duration = self.format_duration(
-                    timedelta(seconds=voice_duration)
-                )
-                embed.add_field(
-                    name=f"{index}. {name}",
-                    value=formatted_duration,
-                    inline=False,
-                )
-
-        embed.add_field(
-            name="Updated",
-            value=f"<t:{int(time.time())}:R>",
-            inline=False,
-        )
-
-        if not top_users:
-            embed.description = "No voice data available."
-
-        return embed
-
-    def format_name(self, member, index):
-        name = member.nick or member.display_name
-
-        if index == 1:
-            name = f"🥇 {name}"
-        elif index == 2:
-            name = f"🥈 {name}"
-        elif index == 3:
-            name = f"🥉 {name}"
-
-        return name
+            os.remove("voice_leaderboard.png")
 
     async def update_message(self, embed, guild, channel_id, message_id):
         if text_channel := guild.get_channel(channel_id):
@@ -622,20 +619,6 @@ class Server(commands.Cog):
             )
 
             await self.conn.commit()
-
-    def format_duration(self, duration: timedelta) -> str:
-        days = duration.days
-        hours, remainder = divmod(duration.seconds, 3600)
-
-        total_hours = days * 24 + hours
-
-        hour_scale = 24
-        num_dots = total_hours // hour_scale
-
-        if num_dots == 0 and total_hours > 0:
-            num_dots = 1
-
-        return f"{'●' * num_dots} - {days}d {hours}h"
 
     @tasks.loop(seconds=30)
     async def voice_update_loop(self):
