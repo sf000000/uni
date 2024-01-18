@@ -1,3 +1,5 @@
+import asyncio
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,11 +19,12 @@ class SeleniumManager:
 
         self.driver = webdriver.Firefox(options=options)
 
-    def screenshot_element(self, element_id: str, file_name: str):
+    async def screenshot_element(self, element_id: str, file_name: str):
         self.driver.get(self.url)
         element = WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.ID, element_id))
         )
+        await asyncio.sleep(2)
         element.screenshot(file_name)
 
         return file_name
