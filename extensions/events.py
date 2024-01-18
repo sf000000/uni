@@ -28,7 +28,7 @@ class Events(commands.Cog):
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=10)
     async def update_top_gg_stats(self):
         await self.bot.wait_until_ready()
 
