@@ -754,7 +754,6 @@ class Information(commands.Cog):
         vote_button = discord.ui.Button(
             style=discord.ButtonStyle.link,
             label="Vote",
-            emoji="<:frog:1197331174331265044>",
             url=f"https://top.gg/bot/{self.bot.user.id}/vote",
         )
         view = discord.ui.View()
