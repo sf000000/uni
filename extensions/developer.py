@@ -258,6 +258,9 @@ class Developer(commands.Cog):
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to reload.", required=True),
     ):
+        if not os.path.exists(f"./extensions/{extension}.py"):
+            return await ctx.respond(f"Extension `{extension}` does not exist.")
+
         self.bot.reload_extension(f"extensions.{extension}")
         await ctx.respond("\✅")
 
