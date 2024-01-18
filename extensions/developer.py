@@ -6,7 +6,9 @@ import datetime
 import ast
 import time
 import re
+import base64
 
+from helpers.selenium_manager import SeleniumManager
 from discord.ext import commands
 from helpers.utils import iso_to_discord_timestamp, fetch_latest_commit_info
 
@@ -450,6 +452,40 @@ class Developer(commands.Cog):
                 color=config["COLORS"]["DEFAULT"],
             )
         )
+
+    @_dev.command(
+        name="usage",
+        description="Shows a bar graph of command usage.",
+    )
+    async def usage(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+        async with self.conn.cursor() as cur:
+            await cur.execute(
+                "SELECT command, COUNT(*) FROM command_usage GROUP BY command"
+            )
+            results = await cur.fetchall()
+
+        if not results:
+            return await ctx.respond("No commands have been used.")
+
+        command_usage = []
+        for command, count in results:
+            command_usage.append({"name": command, "size": count})
+
+        command_usage = sorted(command_usage, key=lambda x: x["size"], reverse=True)
+        command_usage = base64.b64encode(str(command_usage).encode("utf-8")).decode(
+            "utf-8"
+        )
+
+        url = "https://uni-ui.vercel.app/command-usage?commands=" + command_usage
+
+        selenium_manager = SeleniumManager(url=url)
+
+        await selenium_manager.screenshot_element("capture", "command_usage.png")
+        await ctx.respond(
+            file=discord.File("command_usage.png"),
+        )
+        os.remove("command_usage.png")
 
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):
