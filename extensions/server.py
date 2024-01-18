@@ -553,47 +553,44 @@ class Server(commands.Cog):
     async def update_guild_stats(self, guild_id: int, channel_id: int, message_id: int):
         guild = self.bot.get_guild(guild_id)
         if guild and message_id:
-            embed = discord.Embed(
-                color=config["COLORS"]["DEFAULT"],
-            )
+            async with self.conn.cursor() as cur:
+                await cur.execute("SELECT * FROM user_voice_stats")
+                user_voice_stats = await cur.fetchall()
 
-        async with self.conn.cursor() as cur:
-            await cur.execute("SELECT * FROM user_voice_stats")
-            user_voice_stats = await cur.fetchall()
+                user_voice_stats.sort(key=lambda x: x[2], reverse=True)
+                top_5_users = user_voice_stats[:7]
 
-            user_voice_stats.sort(key=lambda x: x[2], reverse=True)
-            top_5_users = user_voice_stats[:5]
+                users = []
+                for user in top_5_users:
+                    users.append(
+                        {"name": user[4], "duration": user[2], "avatar_url": user[3]}
+                    )
 
-            users = []
-            for user in top_5_users:
-                users.append(
-                    {"name": user[4], "duration": user[2], "avatar_url": user[3]}
+                users = base64.b64encode(str(users).encode("utf-8")).decode("utf-8")
+
+                url = "https://uni-ui.vercel.app/voice-leaderboard?users=" + users
+
+                selenium_manager = SeleniumManager(url=url)
+
+                leaderboard = await selenium_manager.screenshot_element(
+                    "capture", "voice_leaderboard.png"
                 )
 
-            users = base64.b64encode(str(users).encode("utf-8")).decode("utf-8")
+                image = cloudinary.uploader.upload(
+                    leaderboard, public_id="voice_leaderboard", overwrite=True
+                )["url"]
 
-            url = "https://uni-ui.vercel.app/voice-leaderboard?users=" + users
+                await self.update_message(image, guild, channel_id, message_id)
 
-            selenium_manager = SeleniumManager(url=url)
+                os.remove("voice_leaderboard.png")
 
-            leaderboard = selenium_manager.screenshot_element(
-                "capture", "voice_leaderboard.png"
-            )
-
-            image = cloudinary.uploader.upload(
-                leaderboard, public_id="voice_leaderboard", overwrite=True
-            )["url"]
-
-            embed.set_image(url=image)
-            await self.update_message(embed, guild, channel_id, message_id)
-
-            os.remove("voice_leaderboard.png")
-
-    async def update_message(self, embed, guild, channel_id, message_id):
+    async def update_message(
+        self, image_url: str, guild: discord.Guild, channel_id: int, message_id: int
+    ):
         if text_channel := guild.get_channel(channel_id):
             try:
                 message = await text_channel.fetch_message(message_id)
-                await message.edit(embed=embed)
+                await message.edit(content=image_url, embed=None)
             except discord.NotFound:
                 print(f"Voice stats message not found in {text_channel.mention}")
 
