@@ -417,43 +417,6 @@ class Developer(commands.Cog):
         except Exception as e:
             await ctx.respond(f"Error occurred: {e}")
 
-    # @discord.slash_command(
-    #     name="botpfp",
-    #     description="Changes the bot's profile picture.",
-    # )
-    # @commands.is_owner()
-    # async def _botpfp(
-    #     self,
-    #     ctx: discord.ApplicationContext,
-    #     image_url: discord.Option(
-    #         str,
-    #         "The URL of the image to set the bot's profile picture to.",
-    #         required=True,
-    #     ),
-    # ):
-    #     async with aiohttp.ClientSession() as session:
-    #         async with session.get(image_url) as resp:
-    #             if resp.status != 200:
-    #                 return await ctx.respond(
-    #                     embed=discord.Embed(
-    #                         description="Invalid image URL.",
-    #                         color=config["COLORS"]["ERROR"],
-    #                     )
-    #                 )
-
-    #             image_bytes = await resp.read()
-
-    #     try:
-    #         await self.bot.user.edit(avatar=image_bytes)
-    #         await ctx.respond(
-    #             embed=discord.Embed(
-    #                 description="Successfully changed the bot's profile picture.",
-    #                 color=config["COLORS"]["SUCCESS"],
-    #             )
-    #         )
-    #     except Exception as e:
-    #         await ctx.respond(f"Error occurred: {e}")
-
     @_dev.command(
         name="shards",
         description="Gets the current shards.",
