@@ -83,7 +83,7 @@ class TopGGManager:
 
         async with httpx.AsyncClient() as client:
             response = await self._post_request(
-                client, f"bots/{bot_id}/stats", data=data
+                client, f"bots/{bot_id}/stats", data=data, timeout=30
             )
         return response.json()
 
@@ -102,7 +102,11 @@ class TopGGManager:
         return response
 
     async def _post_request(
-        self, client: httpx.AsyncClient, endpoint: str, data: Optional[Dict] = None
+        self,
+        client: httpx.AsyncClient,
+        endpoint: str,
+        data: Optional[Dict] = None,
+        timeout: Optional[float] = None,
     ) -> httpx.Response:
         url = f"{self.api_base_url}{endpoint}"
         response = await client.post(url, json=data, headers=self.headers)
