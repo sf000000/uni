@@ -23,7 +23,7 @@ class Events(commands.Cog):
         self.bot.loop.create_task(self.setup_db())
         self.top_gg = TopGGManager(config["top_gg"]["api_token"])
 
-        self.update_top_gg_stats.start()
+        # self.update_top_gg_stats.start()
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
