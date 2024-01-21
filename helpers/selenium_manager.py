@@ -27,4 +27,6 @@ class SeleniumManager:
         await asyncio.sleep(2)
         element.screenshot(file_name)
 
+        self.driver.quit()
+
         return file_name
