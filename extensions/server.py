@@ -600,19 +600,30 @@ class Server(commands.Cog):
         async with self.conn.cursor() as cur:
             await cur.execute(
                 """
-                INSERT OR IGNORE INTO user_voice_stats (user_id, guild_id, voice_duration)
-                VALUES (?, ?, 0)
+                INSERT OR IGNORE INTO user_voice_stats (user_id, guild_id, voice_duration, name, avatar_url)
+                VALUES (?, ?, 0, ?, ?)
                 """,
-                (member.id, guild_id),
+                (
+                    member.id,
+                    guild_id,
+                    member.name,
+                    member.avatar.url or member.default_avatar.url,
+                ),
             )
 
             await cur.execute(
                 """
                 UPDATE user_voice_stats
-                SET voice_duration = voice_duration + ?
+                SET voice_duration = voice_duration + ?, name = ?, avatar_url = ?
                 WHERE user_id = ? AND guild_id = ?
                 """,
-                (added_seconds, member.id, guild_id),
+                (
+                    added_seconds,
+                    member.name,
+                    member.avatar.url or member.default_avatar.url,
+                    member.id,
+                    guild_id,
+                ),
             )
 
             await self.conn.commit()
