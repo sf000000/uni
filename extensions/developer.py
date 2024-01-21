@@ -17,8 +17,6 @@ from helpers.utils import (
     set_seaborn_style,
 )
 
-from helpers.top_gg import TopGGManager
-
 
 def load_config():
     with open("config.yml", "r", encoding="utf-8") as config_file:
@@ -64,7 +62,6 @@ class Developer(commands.Cog):
         self.bot = bot_
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
-        self.topgg = TopGGManager(config["top_gg"]["api_token"])
 
     async def setup_db(self):
         self.conn = await aiosqlite.connect(self.db_path)
@@ -443,23 +440,6 @@ class Developer(commands.Cog):
         await ctx.respond(
             embed=discord.Embed(
                 description="\n".join(shard_lines),
-                color=config["COLORS"]["DEFAULT"],
-            )
-        )
-
-    @_dev.command(
-        name="guilds",
-        description="Gets the current guilds the bot is in.",
-    )
-    async def _guilds(self, ctx: discord.ApplicationContext):
-        guild_lines = [
-            f"{index}. {guild.name} - {guild.id} - {guild.member_count} members"
-            for index, guild in enumerate(self.bot.guilds, 1)
-        ]
-
-        await ctx.respond(
-            embed=discord.Embed(
-                description="\n".join(guild_lines),
                 color=config["COLORS"]["DEFAULT"],
             )
         )
