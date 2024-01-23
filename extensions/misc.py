@@ -17,6 +17,90 @@ def load_config():
 config = load_config()
 
 
+def ms_to_hours(ms):
+    hours, remainder = divmod(ms, 3600000)
+    minutes, remainder = divmod(remainder, 60000)
+    seconds, _ = divmod(remainder, 1000)
+    return f"{hours}h {minutes}m {seconds}s"
+
+
+class ListenerPaginator(discord.ui.View):
+    def __init__(self, data, track):
+        super().__init__()
+        self.data = data
+        self.track = track
+        self.current_page = 0
+
+    @discord.ui.button(label="First", emoji="⏮️", style=discord.ButtonStyle.secondary)
+    async def first_button(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        self.current_page = 0
+        await interaction.response.edit_message(
+            embed=self.get_page_content(), view=self
+        )
+
+    @discord.ui.button(
+        label="Previous", emoji="⬅️", style=discord.ButtonStyle.secondary
+    )
+    async def previous_button(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(
+                embed=self.get_page_content(), view=self
+            )
+
+    @discord.ui.button(label="Next", emoji="➡️", style=discord.ButtonStyle.secondary)
+    async def next_button(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        if self.current_page < len(self.data) - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(
+                embed=self.get_page_content(), view=self
+            )
+
+    @discord.ui.button(label="Last", emoji="⏭️", style=discord.ButtonStyle.secondary)
+    async def last_button(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        self.current_page = len(self.data) - 1
+        await interaction.response.edit_message(
+            embed=self.get_page_content(), view=self
+        )
+
+    def get_page_content(self):
+        item = self.data[self.current_page]
+        embed = discord.Embed(
+            description=item["user"]["profile"]["bio"] or "No bio",
+            color=discord.Color.embed_background(),
+        )
+
+        if item["user"]["image"]:
+            embed.set_thumbnail(url=item["user"]["image"])
+
+        embed.set_author(
+            name=f"{self.track.title} by {self.track.artist}",
+            url=self.track.track_url,
+            icon_url=self.track.album_cover_url,
+        )
+
+        embed.add_field(
+            name="User",
+            value=f"{item['user']['displayName']} ([Open in Spotify](https://open.spotify.com/user/{item['user']['id']}))",
+        )
+        embed.add_field(
+            name="Streams",
+            value=f"{item['streams']}x ({ms_to_hours(item['playedMs'])})",
+        )
+
+        embed.set_footer(text=f"Page {self.current_page + 1}/{len(self.data)}")
+
+        return embed
+
+
 class Misc(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
@@ -283,7 +367,7 @@ class Misc(commands.Cog):
         name="tts",
         description="Sends a .mp3 file of text speech",
     )
-    @commands.cooldown(1, 60, commands.BucketType.user)
+    @commands.cooldown(1, 30, commands.BucketType.user)
     async def _tts(
         self,
         ctx: discord.ApplicationContext,
@@ -332,7 +416,7 @@ class Misc(commands.Cog):
         name="horoscope",
         description="Get your daily horoscope",
     )
-    @commands.cooldown(1, 60, commands.BucketType.user)
+    @commands.cooldown(1, 30, commands.BucketType.user)
     async def _horoscope(
         self,
         ctx: discord.ApplicationContext,
@@ -367,7 +451,6 @@ class Misc(commands.Cog):
         await ctx.respond(embed=embed)
 
     @discord.slash_command(name="colorscheme", description="Generate a color scheme")
-    @commands.cooldown(1, 60, commands.BucketType.user)
     async def _colorscheme(self, ctx: discord.ApplicationContext):
         await ctx.defer()
 
@@ -398,6 +481,94 @@ class Misc(commands.Cog):
         finally:
             if os.path.exists(filename):
                 os.remove(filename)
+
+    @discord.slash_command(
+        name="listeners",
+        description="Shows the top listeners of your current Spotify song. (Must be listening to Spotify)",
+    )
+    async def get_listeners(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+        spotify = None
+        for activity in ctx.author.activities:
+            if isinstance(activity, discord.Spotify):
+                spotify = activity
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://beta-api.stats.fm/api/v1/search/elastic",
+                params={
+                    "query": spotify.title,
+                    "type": "track",
+                    "limit": "50",
+                },
+                headers={
+                    "accept": "application/json",
+                    "User-Agent": "Mozilla/5.0 (U; Linux i654 ) Gecko/20130401 Firefox/46.2",
+                },
+            ) as response:
+                data = await response.json()
+
+                track_id = None
+
+                if data.get("items") and data["items"].get("tracks"):
+                    tracks = data["items"]["tracks"]
+                    for track in tracks:
+                        track_artists = [artist["name"] for artist in track["artists"]]
+                        if spotify.artist in track_artists:
+                            track_id = track["id"]
+                            break
+
+                if not track:
+                    await ctx.respond(
+                        f"Could not find any listeners for {spotify.title}"
+                    )
+
+                async with session.get(
+                    f"https://beta-api.stats.fm/api/v1/tracks/{track_id}/top/listeners",
+                    headers={
+                        "accept": "application/json",
+                        "User-Agent": "Mozilla/5.0 (U; Linux i654 ) Gecko/20130401 Firefox/46.2",
+                        "Authorization": f"Bearer {config['STATS_FM_API_KEY']}",
+                    },
+                ) as response:
+                    data = await response.json()
+                    if not data.get("items"):
+                        await ctx.respond(
+                            f"Could not find any listeners for {spotify.title}"
+                        )
+                        return
+
+                    listeners = data["items"]
+                    view = ListenerPaginator(listeners, spotify)
+
+                    first_listener = listeners[0]
+                    embed = discord.Embed(
+                        description=first_listener["user"]["profile"]["bio"]
+                        or "No bio",
+                        color=discord.Color.embed_background(),
+                    )
+
+                    embed.set_author(
+                        name=f"{spotify.title} by {spotify.artist}",
+                        url=spotify.track_url,
+                        icon_url=spotify.album_cover_url,
+                    )
+
+                    if first_listener["user"]["image"]:
+                        embed.set_thumbnail(url=first_listener["user"]["image"])
+
+                    embed.add_field(
+                        name="User",
+                        value=f"{first_listener['user']['displayName']} ([Open in Spotify](https://open.spotify.com/user/{first_listener['user']['id']}))",
+                    )
+                    embed.add_field(
+                        name="Streams",
+                        value=f"{first_listener['streams']}x ({ms_to_hours(first_listener['playedMs'])})",
+                    )
+
+                    embed.set_footer(text=f"Page 1/{len(listeners)}")
+
+                    await ctx.respond(embed=embed, view=view)
 
 
 def setup(bot_: discord.Bot):
