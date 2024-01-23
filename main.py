@@ -42,6 +42,7 @@ class Bot(commands.AutoShardedBot):
                     )
                     traceback.print_exc()
 
+        self.load_extension("jishaku")
         self.remove_command("help")
 
     async def on_ready(self):
