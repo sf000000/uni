@@ -138,6 +138,10 @@ From basic server management to fun games, music playback, and even AI interacti
 
 </details>
 
+## Task List
+
+- [ ] Implement birthdays announcement feat
+
 ## Contribute
 
 Uni is an open-source project, and contributions are welcome! If you have coding skills or want to contribute in other ways, feel free to get involved. Here's how you can contribute:
