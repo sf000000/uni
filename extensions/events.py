@@ -23,6 +23,7 @@ class Events(commands.Cog):
         self.bot.loop.create_task(self.setup_db())
         self.top_gg = TopGGManager(config["top_gg"]["api_token"])
 
+        # self.announce_birthdays.start()
         # self.update_top_gg_stats.start()
 
     async def setup_db(self):
@@ -39,6 +40,17 @@ class Events(commands.Cog):
         await self.top_gg.post_bot_stats(
             self.bot.user.id, server_count, shards=shards, shard_count=shard_count
         )
+
+    @tasks.loop(minutes=5)
+    async def announce_birthdays(self):
+        await self.bot.wait_until_ready()
+
+        # Table: birthdays
+        # Columns: user_id, guild_id, month, day
+
+        async with self.conn.cursor() as cur:
+            await cur.execute("SELECT * FROM birthdays")
+            birthdays = await cur.fetchall()
 
 
 def setup(bot_: discord.Bot):
