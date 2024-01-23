@@ -134,6 +134,8 @@ From basic server management to fun games, music playback, and even AI interacti
 <img src="./assets/lastfmnp.png" width=1000/>
 <img src="./assets/lastfmwhois.png" width=1000/>
 <img src="./assets/moviewatch.png" width=1000/>
+<img src="./assets/listeners.png" width=1000/>
+
 </details>
 
 ## Contribute
