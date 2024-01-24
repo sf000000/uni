@@ -493,6 +493,11 @@ class Misc(commands.Cog):
             if isinstance(activity, discord.Spotify):
                 spotify = activity
 
+        if not spotify:
+            await ctx.respond(
+                "You must be listening to Spotify to use this command.", ephemeral=True
+            )
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 "https://beta-api.stats.fm/api/v1/search/elastic",
