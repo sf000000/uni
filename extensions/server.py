@@ -150,7 +150,7 @@ class Server(commands.Cog):
                     WebDriverWait(driver, 10).until(element_present)
 
                     element = driver.find_element(by=By.ID, value="capture")
-                    asyncio.sleep(3)
+                    await asyncio.sleep(3)
                     element.screenshot("temp/welcome.png")
 
                     return "temp/welcome.png"
