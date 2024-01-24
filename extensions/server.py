@@ -1,7 +1,7 @@
 import discord
 import aiosqlite
 import yaml
-import time
+import asyncio
 import aiohttp
 import os
 import pytz
@@ -150,7 +150,7 @@ class Server(commands.Cog):
                     WebDriverWait(driver, 10).until(element_present)
 
                     element = driver.find_element(by=By.ID, value="capture")
-                    time.sleep(2)
+                    asyncio.sleep(3)
                     element.screenshot("temp/welcome.png")
 
                     return "temp/welcome.png"
