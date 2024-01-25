@@ -1,10 +1,9 @@
 import discord
-import traceback
 import yaml
 import os
 
 from discord.ext import commands
-from colorama import Fore, Style
+from helpers.logger_config import configure_logger
 
 
 def load_config():
@@ -17,6 +16,14 @@ config = load_config()
 
 
 class Bot(commands.AutoShardedBot):
+    """
+    Represents a bot instance with additional functionality.
+
+    Attributes:
+        disabled_extensions (list): A list of disabled extensions.
+        log (Logger): The logger instance for logging.
+    """
+
     def __init__(self):
         super().__init__(
             command_prefix=config["PREFIX"],
@@ -26,32 +33,25 @@ class Bot(commands.AutoShardedBot):
             status=config["STATUS_TYPE"],
         )
         self.disabled_extensions = []
+        self.log = configure_logger()
 
         extensions_dir = "extensions"
         for filename in os.listdir(extensions_dir):
             if filename.endswith(".py"):
                 extension = f"{extensions_dir}.{filename[:-3]}"
-                print(f"Loading extension {Fore.GREEN}{extension}{Style.RESET_ALL}")
                 try:
                     self.load_extension(
                         extension
                     ) if extension not in self.extensions else None
                 except Exception as e:
-                    print(
-                        f"Failed to load extension {Fore.RED}{extension}{Style.RESET_ALL}: {Fore.RED}{e}{Style.RESET_ALL}"
-                    )
-                    traceback.print_exc()
+                    self.log.error(f"Failed to load extension {extension}\n{e}")
 
         self.load_extension("jishaku")
         self.remove_command("help")
 
     async def on_ready(self):
-        print(
-            f"\n🤖 Logged in as {Fore.GREEN}{self.user}{Style.RESET_ALL} ({Fore.GREEN}{self.user.id}{Style.RESET_ALL})"
-        )
-        print(
-            f"🔄 Discord API version: {Fore.GREEN}{discord.__version__}{Style.RESET_ALL}"
-        )
+        self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
+        self.log.info(f"Connected to {len(self.guilds)} guilds")
 
 
 bot = Bot()
