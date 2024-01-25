@@ -18,15 +18,43 @@ config = load_config()
 
 
 class AI(commands.Cog):
+    """
+    A class representing an AI cog for interacting with OpenAI.
+
+    Attributes:
+    - bot_: The bot instance.
+    - log: The logging instance.
+    - db_path: The path to the database file.
+    - open_ai: The AsyncOpenAI instance for interacting with the OpenAI API.
+    - conversation_history: A dictionary to store the conversation history for each user.
+    - conn: The connection to the database.
+    """
+
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
+        self.log = bot_.log
+        self.db_path = "kino.db"
+        self.bot.loop.create_task(self.setup_db())
+        self.open_ai = openai.AsyncOpenAI(api_key=config["OPENAI_API_KEY"])
+        self.conversation_history = {}
+
+    ...
+
+
+class AI(commands.Cog):
+    def __init__(self, bot_: discord.Bot):
+        self.bot = bot_
+        self.log = bot_.log
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
         self.open_ai = openai.AsyncOpenAI(api_key=config["OPENAI_API_KEY"])
         self.conversation_history = {}
 
     async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
+        try:
+            self.conn = await aiosqlite.connect(self.db_path)
+        except Exception as e:
+            self.log.error(f"Failed to connect to database: {e}")
 
     async def cog_before_invoke(self, ctx: discord.ApplicationContext):
         command_name = ctx.command.name
@@ -51,10 +79,14 @@ class AI(commands.Cog):
                 )
 
     async def dalle_generate_image(self, prompt: str) -> str:
-        response = await self.open_ai.images.generate(
-            model="dall-e-3", prompt=prompt, n=1, size="1024x1024"
-        )
-        return response.data[0].url
+        try:
+            response = await self.open_ai.images.generate(
+                model="dall-e-3", prompt=prompt, n=1, size="1024x1024"
+            )
+            return response.data[0].url
+        except Exception as e:
+            self.log.error(f"Failed to generate image: {e}")
+            return None
 
     _ai = discord.commands.SlashCommandGroup(
         name="ai", description="Commands for interacting with the AI."
@@ -158,23 +190,26 @@ class AI(commands.Cog):
         )
 
     async def generate_chat_history_file(self, interaction: discord.Interaction):
-        user_history = self.conversation_history.setdefault(interaction.user.id, [])
+        try:
+            user_history = self.conversation_history.setdefault(interaction.user.id, [])
 
-        history_text = "Chat History\n\n"
-        for message in user_history:
-            speaker = "Bot" if message["role"] == "assistant" else "You"
-            history_text += f"{speaker}: {message['content']}\n"
+            history_text = "Chat History\n\n"
+            for message in user_history:
+                speaker = "Bot" if message["role"] == "assistant" else "You"
+                history_text += f"{speaker}: {message['content']}\n"
 
-        with open(
-            f"{interaction.user.id}_chat_history.txt", "w", encoding="utf-8"
-        ) as file:
-            file.write(history_text)
+            with open(
+                f"{interaction.user.id}_chat_history.txt", "w", encoding="utf-8"
+            ) as file:
+                file.write(history_text)
 
-        await interaction.response.send_message(
-            file=discord.File(f"{interaction.user.id}_chat_history.txt"),
-            content="Here's your chat history.",
-        )
-        os.remove(f"{interaction.user.id}_chat_history.txt")
+            await interaction.response.send_message(
+                file=discord.File(f"{interaction.user.id}_chat_history.txt"),
+                content="Here's your chat history.",
+            )
+            os.remove(f"{interaction.user.id}_chat_history.txt")
+        except Exception as e:
+            self.log.error(f"Failed to generate chat history file: {e}")
 
 
 def setup(bot_: discord.Bot):
