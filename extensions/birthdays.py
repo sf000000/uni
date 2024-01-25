@@ -1,5 +1,6 @@
 import discord
 import aiosqlite
+import traceback
 
 from discord.ext import commands
 from discord.ui import View, Button
@@ -61,6 +62,7 @@ class BirthdayPaginationView(View):
 class Birthdays(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
+        self.log = bot_.log
         self.db_path = "kino.db"
 
     _birthdays = discord.commands.SlashCommandGroup(
@@ -85,68 +87,76 @@ class Birthdays(commands.Cog):
             description="Day of your birthday",
         ),
     ):
-        await ctx.defer()
+        try:
+            await ctx.defer()
 
-        if day not in range(1, 32):
-            return await ctx.respond(f"😅 {day} days in a month? Even my calculator is confused. Try a day from 1 to 31!"   ) # fmt: skip
+            if day not in range(1, 32):
+                return await ctx.respond(f"😅 {day} days in a month? Even my calculator is confused. Try a day from 1 to 31!"        ) # fmt: skip
 
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "CREATE TABLE IF NOT EXISTS birthdays (user_id INTEGER PRIMARY KEY, guild_id INTEGER, month INTEGER, day INTEGER)"
-            )
-            await db.commit()
-
-            async with db.execute(
-                "SELECT * FROM birthdays WHERE user_id = ? AND guild_id = ?",
-                (ctx.author.id, ctx.guild.id),
-            ) as cursor:
-                if await cursor.fetchone():
-                    await db.execute(
-                        "UPDATE birthdays SET month = ?, day = ? WHERE user_id = ? AND guild_id = ?",
-                        (month, day, ctx.author.id, ctx.guild.id),
-                    )
-                else:
-                    await db.execute(
-                        "INSERT INTO birthdays (user_id, guild_id, month, day) VALUES (?, ?, ?, ?)",
-                        (ctx.author.id, ctx.guild.id, month, day),
-                    )
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    "CREATE TABLE IF NOT EXISTS birthdays (user_id INTEGER PRIMARY KEY, guild_id INTEGER, month INTEGER, day INTEGER)"
+                )
                 await db.commit()
 
-        month_name = months[month - 1]["name"]
-        await ctx.respond(f"🎉 Your birthday has been set to {month_name} {day}!")
+                async with db.execute(
+                    "SELECT * FROM birthdays WHERE user_id = ? AND guild_id = ?",
+                    (ctx.author.id, ctx.guild.id),
+                ) as cursor:
+                    if await cursor.fetchone():
+                        await db.execute(
+                            "UPDATE birthdays SET month = ?, day = ? WHERE user_id = ? AND guild_id = ?",
+                            (month, day, ctx.author.id, ctx.guild.id),
+                        )
+                    else:
+                        await db.execute(
+                            "INSERT INTO birthdays (user_id, guild_id, month, day) VALUES (?, ?, ?, ?)",
+                            (ctx.author.id, ctx.guild.id, month, day),
+                        )
+                    await db.commit()
+
+            month_name = months[month - 1]["name"]
+            await ctx.respond(f"🎉 Your birthday has been set to {month_name} {day}!")
+        except Exception as e:
+            self.log.error(f"Failed to set birthday: {e}")
+            self.log.error(traceback.format_exc())
 
     @_birthdays.command(name="view", description="View everyone's birthday")
     async def view_birthdays(self, ctx: commands.Context):
-        await ctx.defer()
+        try:
+            await ctx.defer()
 
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT * FROM birthdays WHERE guild_id = ?", (ctx.guild.id,)
-            ) as cursor:
-                birthdays = await cursor.fetchall()
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    "SELECT * FROM birthdays WHERE guild_id = ?", (ctx.guild.id,)
+                ) as cursor:
+                    birthdays = await cursor.fetchall()
 
-        if not birthdays:
-            return await ctx.respond("😅 No one has set their birthday yet!")
+            if not birthdays:
+                return await ctx.respond("😅 No one has set their birthday yet!")
 
-        embeds = []
+            embeds = []
 
-        for birthday in birthdays:
-            user = ctx.guild.get_member(birthday[0])
-            if not user:
-                continue
+            for birthday in birthdays:
+                user = ctx.guild.get_member(birthday[0])
+                if not user:
+                    continue
 
-            month_name = months[birthday[2] - 1]["name"]
-            embed = discord.Embed(
-                title=f"{user.nick or user.name}'s Birthday",
-                description=f"{month_name} {birthday[3]}",
-                color=discord.Color.embed_background(),
-            )
-            embed.set_thumbnail(url=user.avatar.url)
-            embeds.append(embed)
+                month_name = months[birthday[2] - 1]["name"]
+                embed = discord.Embed(
+                    title=f"{user.nick or user.name}'s Birthday",
+                    description=f"{month_name} {birthday[3]}",
+                    color=discord.Color.embed_background(),
+                )
+                embed.set_thumbnail(url=user.avatar.url)
+                embeds.append(embed)
 
-        view = BirthdayPaginationView(embeds)
+            view = BirthdayPaginationView(embeds)
 
-        await ctx.respond(embed=embeds[0], view=view)
+            await ctx.respond(embed=embeds[0], view=view)
+        except Exception as e:
+            self.log.error(f"Failed to view birthdays: {e}")
+            self.log.error(traceback.format_exc())
 
     @_birthdays.command(name="get", description="Get someone's birthday")
     async def get_birthday(
@@ -157,20 +167,28 @@ class Birthdays(commands.Cog):
             description="User to get birthday of",
         ),
     ):
-        await ctx.defer()
+        try:
+            await ctx.defer()
 
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT * FROM birthdays WHERE user_id = ? AND guild_id = ?",
-                (user.id, ctx.guild.id),
-            ) as cursor:
-                birthday = await cursor.fetchone()
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    "SELECT * FROM birthdays WHERE user_id = ? AND guild_id = ?",
+                    (user.id, ctx.guild.id),
+                ) as cursor:
+                    birthday = await cursor.fetchone()
 
-        if not birthday:
-            return await ctx.respond(f"😅 {user.name} hasn't set their birthday yet!")
+            if not birthday:
+                return await ctx.respond(
+                    f"😅 {user.name} hasn't set their birthday yet!
+                ")
 
-        month_name = months[birthday[2] - 1]["name"]
-        await ctx.respond(f"🎉 {user.name}'s birthday is {month_name} {birthday[3]}!")
+            month_name = months[birthday[2] - 1]["name"]
+            await ctx.respond(
+                f"🎉 {user.name}'s birthday is {month_name} {birthday[3]}!
+            ")
+        except Exception as e:
+            self.log.error(f"Failed to get birthday: {e}")
+            self.log.error(traceback.format_exc())
 
 
 def setup(bot_: discord.Bot):
