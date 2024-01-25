@@ -128,11 +128,7 @@ class Server(commands.Cog):
             if not welcome_channel:
                 return
 
-            avatar_url = (
-                member.avatar.url
-                if member.avatar
-                else "https://files.catbox.moe/hg13w4.png"
-            )
+            avatar_url = member.avatar.url or member.default_avatar.url
             formatted_url = f"https://uni-ui.vercel.app/welcome?displayName={member.name}&userId={member.id}&userAvatar={avatar_url}&guildName={member.guild.name}&memberCount={member.guild.member_count}"
 
             async def run_selenium():
@@ -140,7 +136,6 @@ class Server(commands.Cog):
                 options.add_argument("--headless")
                 options.add_argument("--no-sandbox")
                 options.add_argument("--incognito")
-                options.add_argument("--window-size=2560,1440")
 
                 driver = webdriver.Firefox(options=options)
                 driver.get(formatted_url)
@@ -152,9 +147,7 @@ class Server(commands.Cog):
                     element = driver.find_element(by=By.ID, value="capture")
                     await asyncio.sleep(3)
                     element.screenshot("temp/welcome.png")
-
                     return "temp/welcome.png"
-
                 finally:
                     driver.quit()
 
