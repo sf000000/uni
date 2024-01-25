@@ -13,8 +13,8 @@ config = load_config()
 
 
 class ErrorHandler(commands.Cog):
-    def __init__(self, bot: discord.Bot):
-        self.bot = bot
+    def __init__(self, bot_: discord.Bot):
+        self.bot = bot_
 
     @commands.Cog.listener()
     async def on_application_command_error(
@@ -87,5 +87,5 @@ class ErrorHandler(commands.Cog):
         return False
 
 
-def setup(bot: discord.Bot):
-    bot.add_cog(ErrorHandler(bot))
+def setup(bot_: discord.Bot):
+    bot_.add_cog(ErrorHandler(bot_))
