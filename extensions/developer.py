@@ -60,6 +60,7 @@ config = load_config()
 class Developer(commands.Cog):
     def __init__(self, bot_: discord.Bot):
         self.bot = bot_
+        self.log = bot_.log
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
 
@@ -114,7 +115,10 @@ class Developer(commands.Cog):
             return await ctx.respond(
                 "Could not find a guild with that ID.", ephemeral=True
             )
-        await guild.leave()
+        try:
+            await guild.leave()
+        except Exception as e:
+            self.log.error(f"Failed to leave guild: {e}")
         await ctx.respond(
             f"Successfully left the guild **{guild.name}** ({guild.id}).",
             ephemeral=True,
@@ -161,6 +165,7 @@ class Developer(commands.Cog):
             embed.add_field(name="Execution Time", value=f"{execution_time:.4f}s")
             await ctx.respond(embed=embed)
         except Exception as e:
+            self.log.error(f"Failed to evaluate code: {e}")
             await ctx.respond(f"```py\n{e}\n```")
 
     @_dev.command(
@@ -189,6 +194,7 @@ class Developer(commands.Cog):
                 )
                 await self.conn.commit()
         except Exception as e:
+            self.log.error(f"Failed to disable command: {e}")
             return await ctx.respond(f"An error occurred: {e}")
 
         await ctx.respond(f"Command `{command}` has been disabled.")
@@ -220,6 +226,7 @@ class Developer(commands.Cog):
 
             await ctx.respond(f"Command `{command}` has been enabled.")
         except Exception as e:
+            self.log.error(f"Failed to enable command: {e}")
             await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(name="execute", description="Executes a SQL query.")
@@ -234,6 +241,7 @@ class Developer(commands.Cog):
                 await self.conn.commit()
                 await ctx.respond("Query executed.")
         except Exception as e:
+            self.lgo.error(f"Failed to execute query: {e}")
             return await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(
@@ -247,7 +255,11 @@ class Developer(commands.Cog):
             str, "The status to set the bot's playing status to.", required=True
         ),
     ):
-        await self.bot.change_presence(activity=discord.Game(name=status))
+        try:
+            await self.bot.change_presence(activity=discord.Game(name=status))
+        except Exception as e:
+            self.log.error(f"Failed to set status: {e}")
+            await ctx.respond(f"An error occurred: {e}")
 
     @_dev.command(
         name="reload",
@@ -261,8 +273,11 @@ class Developer(commands.Cog):
         if not os.path.exists(f"./extensions/{extension}.py"):
             return await ctx.respond(f"Extension `{extension}` does not exist.")
 
-        self.bot.reload_extension(f"extensions.{extension}")
-        await ctx.respond("\✅")
+        try:
+            self.bot.reload_extension(f"extensions.{extension}")
+            await ctx.respond("\✅")
+        except Exception as e:
+            self.log.error(f"Failed to reload extension: {e}")
 
     @_dev.command(
         name="load",
@@ -273,8 +288,11 @@ class Developer(commands.Cog):
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to load.", required=True),
     ):
-        self.bot.load_extension(f"extensions.{extension}")
-        await ctx.respond("\✅")
+        try:
+            self.bot.load_extension(f"extensions.{extension}")
+            await ctx.respond("\✅")
+        except Exception as e:
+            self.log.error(f"Failed to load extension: {e}")
 
     @_dev.command(
         name="unload",
@@ -285,8 +303,11 @@ class Developer(commands.Cog):
         ctx: discord.ApplicationContext,
         extension: discord.Option(str, "The extension to unload.", required=True),
     ):
-        self.bot.unload_extension(f"extensions.{extension}")
-        await ctx.respond("\✅")
+        try:
+            self.bot.unload_extension(f"extensions.{extension}")
+            await ctx.respond("\✅")
+        except Exception as e:
+            self.log.error(f"Failed to unload extension: {e}")
 
     @_dev.command(
         name="reloadall",
@@ -296,8 +317,11 @@ class Developer(commands.Cog):
         reloaded_extensions = 0
         for filename in os.listdir("./extensions"):
             if filename.endswith(".py"):
-                self.bot.reload_extension(f"extensions.{filename[:-3]}")
-                reloaded_extensions += 1
+                try:
+                    self.bot.reload_extension(f"extensions.{filename[:-3]}")
+                    reloaded_extensions += 1
+                except Exception as e:
+                    self.log.error(f"Failed to reload {filename}: {e}")
 
         await ctx.respond(
             embed=discord.Embed(
@@ -363,6 +387,7 @@ class Developer(commands.Cog):
                 )
             )
         except Exception as e:
+            self.log.error(f"Failed to give premium: {e}")
             await ctx.respond(f"Error occurred: {e}")
 
     @discord.slash_command(
@@ -391,6 +416,7 @@ class Developer(commands.Cog):
                 )
             )
         except Exception as e:
+            self.log.error(f"Failed to remove premium: {e}")
             await ctx.respond(f"Error occurred: {e}")
 
     @discord.slash_command(
@@ -425,6 +451,7 @@ class Developer(commands.Cog):
                 )
             )
         except Exception as e:
+            self.log.error(f"Failed to check premium status: {e}")
             await ctx.respond(f"Error occurred: {e}")
 
     @_dev.command(
