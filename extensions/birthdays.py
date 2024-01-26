@@ -91,7 +91,7 @@ class Birthdays(commands.Cog):
             await ctx.defer()
 
             if day not in range(1, 32):
-                return await ctx.respond(f"😅 {day} days in a month? Even my calculator is confused. Try a day from 1 to 31!"        ) # fmt: skip
+                return await ctx.respond(f"😅 {day} days in a month? Even my calculator is confused. Try a day from 1 to 31!"          ) # fmt: skip
 
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
@@ -178,14 +178,10 @@ class Birthdays(commands.Cog):
                     birthday = await cursor.fetchone()
 
             if not birthday:
-                return await ctx.respond(
-                    f"😅 {user.name} hasn't set their birthday yet!
-                ")
+                return await ctx.respond(f"😅 {user.name} hasn't set their birthday yet")
 
             month_name = months[birthday[2] - 1]["name"]
-            await ctx.respond(
-                f"🎉 {user.name}'s birthday is {month_name} {birthday[3]}!
-            ")
+            await ctx.respond(f"🎉 {user.name}'s birthday is {month_name} {birthday[3]}")
         except Exception as e:
             self.log.error(f"Failed to get birthday: {e}")
             self.log.error(traceback.format_exc())
