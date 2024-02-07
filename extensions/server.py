@@ -8,7 +8,9 @@ import pytz
 import base64
 import cloudinary
 import cloudinary.uploader
+import json
 
+from playwright.async_api import async_playwright
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 from selenium import webdriver
@@ -33,8 +35,6 @@ class Server(commands.Cog):
         self.bot = bot_
         self.db_path = "kino.db"
         self.bot.loop.create_task(self.setup_db())
-        self.update_voice_stats.start()
-        self.voice_update_loop.start()
 
         cloudinary.config(
             cloud_name=config["cloudinary"]["cloud_name"],
@@ -128,30 +128,40 @@ class Server(commands.Cog):
             if not welcome_channel:
                 return
 
-            avatar_url = member.avatar.url or member.default_avatar.url
-            formatted_url = f"https://uni-ui.vercel.app/welcome?displayName={member.name}&userId={member.id}&userAvatar={avatar_url}&guildName={member.guild.name}&memberCount={member.guild.member_count}"
+            member_count = member.guild.member_count
 
-            async def run_selenium():
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
-                options.add_argument("--incognito")
+            data = {
+                "memberCount": member_count,
+                "member": {
+                    "id": str(member.id),
+                    "username": member.name,
+                    "avatar": (
+                        member.avatar.url
+                        if member.avatar
+                        else member.default_avatar.url
+                    ),
+                    "createdAt": member.created_at.isoformat(),
+                    "joinedAt": member.joined_at.isoformat(),
+                    "banner": member.banner.url if member.banner else None,
+                },
+            }
+            data = json.dumps(data)
+            data = base64.b64encode(data.encode("utf-8")).decode("utf-8")
 
-                driver = webdriver.Firefox(options=options)
-                driver.get(formatted_url)
+            url = f"https://uni-ui-nine.vercel.app/welcome?data={data}"
 
-                try:
-                    element_present = EC.presence_of_element_located((By.ID, "capture"))
-                    WebDriverWait(driver, 10).until(element_present)
+            async with async_playwright() as p:
+                browser = await p.chromium.launch()
+                page = await browser.new_page(
+                    device_scale_factor=4.0, viewport={"width": 800, "height": 600}
+                )
+                await page.goto(url)
+                await page.wait_for_selector("img")  # Wait for the image to load
 
-                    element = driver.find_element(by=By.ID, value="capture")
-                    await asyncio.sleep(3)
-                    element.screenshot("temp/welcome.png")
-                    return "temp/welcome.png"
-                finally:
-                    driver.quit()
-
-            result = await run_selenium()
+                card = page.locator(".card")
+                await asyncio.sleep(5)
+                await card.screenshot(path="temp/welcome.png", type="jpeg", quality=100)
+                await browser.close()
 
             rules_channel_button = discord.ui.Button(
                 label="Rules",
@@ -186,10 +196,10 @@ class Server(commands.Cog):
 
             await welcome_channel.send(
                 member.mention,
-                file=discord.File(result),
+                file=discord.File("temp/welcome.png"),
                 view=view if member.guild.id == config["HOME_GUILD"] else None,
             )
-            os.remove(result)
+            os.remove("temp/welcome.png")
 
     _welcome = discord.commands.SlashCommandGroup(
         name="welcome", description="Welcome messages"
@@ -472,164 +482,6 @@ class Server(commands.Cog):
         embed.set_thumbnail(url=ctx.guild.icon.url)
 
         await ctx.respond(embed=embed)
-
-    @discord.slash_command(
-        name="voicestats", description="Setup an auto updating voice leaderboard embed."
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def voice_stats(
-        self,
-        ctx: discord.ApplicationContext,
-        channel: discord.Option(
-            discord.TextChannel, "The channel to send the embed in", required=True
-        ),
-    ):
-        try:
-            async with self.conn.cursor() as cur:
-                await ctx.defer()
-
-                await cur.execute(
-                    "SELECT 1 FROM voice_stats WHERE guild_id = ?", (ctx.guild.id,)
-                )
-                if not await cur.fetchone():
-                    embed = discord.Embed(
-                        title="Voice Leaderboard",
-                        description="There are currently no voice stats for this server. Join a voice channel to get started!",
-                        color=config["COLORS"]["DEFAULT"],
-                    )
-
-                    if channel.permissions_for(ctx.guild.me).send_messages:
-                        message = await channel.send(embed=embed)
-                        await cur.execute(
-                            "INSERT INTO voice_stats (guild_id, channel_id, message_id) VALUES (?, ?, ?)",
-                            (ctx.guild.id, channel.id, message.id),
-                        )
-                    else:
-                        return await ctx.respond(
-                            f"I don't have permission to send messages in {channel.mention}",
-                            ephemeral=True,
-                        )
-
-                else:
-                    await cur.execute(
-                        "UPDATE voice_stats SET channel_id = ?, enabled = 1 WHERE guild_id = ?",
-                        (channel.id, ctx.guild.id),
-                    )
-
-                await self.conn.commit()
-                await ctx.respond(f"Voice stats enabled in {channel.mention}.")
-        except Exception as e:
-            await ctx.respond(f"An error occurred: {e}", ephemeral=True)
-
-    @tasks.loop(minutes=5)
-    async def update_voice_stats(self):
-        await self.bot.wait_until_ready()
-
-        cloudinary.uploader.destroy("voice_leaderboard")
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT guild_id, channel_id, message_id FROM voice_stats WHERE enabled = 1"
-            )
-            rows = await cur.fetchall()
-
-            for guild_id, channel_id, message_id in rows:
-                await self.update_guild_stats(guild_id, channel_id, message_id)
-
-    async def fetch_voice_stats(self):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT guild_id, channel_id, message_id FROM voice_stats WHERE enabled = 1"
-            )
-            return await cur.fetchall()
-
-    async def update_guild_stats(self, guild_id: int, channel_id: int, message_id: int):
-        guild = self.bot.get_guild(guild_id)
-        if guild and message_id:
-            async with self.conn.cursor() as cur:
-                await cur.execute("SELECT * FROM user_voice_stats")
-                user_voice_stats = await cur.fetchall()
-
-                user_voice_stats.sort(key=lambda x: x[2], reverse=True)
-                top_5_users = user_voice_stats[:7]
-
-                users = []
-                for user in top_5_users:
-                    users.append(
-                        {"name": user[4], "duration": user[2], "avatar_url": user[3]}
-                    )
-
-                users = base64.b64encode(str(users).encode("utf-8")).decode("utf-8")
-
-                url = "https://uni-ui.vercel.app/voice-leaderboard?users=" + users
-
-                selenium_manager = SeleniumManager(url=url)
-
-                leaderboard = await selenium_manager.screenshot_element(
-                    "capture", "voice_leaderboard.png"
-                )
-
-                image = cloudinary.uploader.upload(
-                    leaderboard, public_id="voice_leaderboard", overwrite=True
-                )["url"]
-
-                await self.update_message(image, guild, channel_id, message_id)
-
-                os.remove("voice_leaderboard.png")
-
-    async def update_message(
-        self, image_url: str, guild: discord.Guild, channel_id: int, message_id: int
-    ):
-        if text_channel := guild.get_channel(channel_id):
-            try:
-                message = await text_channel.fetch_message(message_id)
-                await message.edit(content=image_url, embed=None)
-            except discord.NotFound:
-                print(f"Voice stats message not found in {text_channel.mention}")
-
-    async def update_voice_duration(
-        self, member: discord.Member, guild_id: int, added_seconds: int
-    ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                """
-                INSERT OR IGNORE INTO user_voice_stats (user_id, guild_id, voice_duration, name, avatar_url)
-                VALUES (?, ?, 0, ?, ?)
-                """,
-                (
-                    member.id,
-                    guild_id,
-                    member.name,
-                    member.avatar.url or member.default_avatar.url,
-                ),
-            )
-
-            await cur.execute(
-                """
-                UPDATE user_voice_stats
-                SET voice_duration = voice_duration + ?, name = ?, avatar_url = ?
-                WHERE user_id = ? AND guild_id = ?
-                """,
-                (
-                    added_seconds,
-                    member.name,
-                    member.avatar.url or member.default_avatar.url,
-                    member.id,
-                    guild_id,
-                ),
-            )
-
-            await self.conn.commit()
-
-    @tasks.loop(seconds=30)
-    async def voice_update_loop(self):
-        await self.bot.wait_until_ready()
-
-        for guild in self.bot.guilds:
-            for vc in guild.voice_channels:
-                members = filter(lambda member: not member.bot, vc.members)
-                for member in members:
-                    await self.update_voice_duration(member, guild.id, 30)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
