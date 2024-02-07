@@ -1,5 +1,6 @@
 import discord
 import aiosqlite
+import asyncio
 import yaml
 import os
 import datetime
@@ -7,6 +8,8 @@ import ast
 import time
 import re
 import pandas as pd
+import base64
+import json
 
 from matplotlib import pyplot as plt
 from discord.ext import commands
@@ -17,6 +20,7 @@ from helpers.utils import (
     set_seaborn_style,
 )
 from helpers import emojis
+from playwright.async_api import async_playwright
 
 
 def load_config():
@@ -584,6 +588,52 @@ class Developer(commands.Cog):
 
         view = LogsPaginator(pages)
         await ctx.respond(content=f"```py\n{pages[0]}```", view=view)
+
+    @_dev.command(
+        name="test",
+        description="Test command.",
+    )
+    async def _test(self, ctx: discord.ApplicationContext, member: discord.Member):
+        if not member:
+            member = ctx.author
+
+        member_count = ctx.guild.member_count
+
+        data = {
+            "memberCount": member_count,
+            "member": {
+                "id": str(member.id),
+                "username": member.name,
+                "avatar": (
+                    member.avatar.url if member.avatar else member.default_avatar.url
+                ),
+                "createdAt": member.created_at.isoformat(),
+                "joinedAt": member.joined_at.isoformat(),
+                "banner": member.banner.url if member.banner else None,
+            },
+        }
+        data = json.dumps(data)
+        data = base64.b64encode(data.encode("utf-8")).decode("utf-8")
+
+        url = f"https://uni-ui-nine.vercel.app/welcome?data={data}"
+
+        await ctx.defer()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(
+                device_scale_factor=4.0, viewport={"width": 800, "height": 600}
+            )
+            await page.goto(url)
+            await page.wait_for_selector("img")  # Wait for the image to load
+
+            card = page.locator(".card")
+
+            await asyncio.sleep(5)
+            await card.screenshot(path="temp/welcome.png", type="jpeg", quality=100)
+            await browser.close()
+
+        await ctx.respond(file=discord.File("temp/welcome.png"))
+        os.remove("temp/welcome.png")
 
     @commands.Cog.listener()
     async def on_application_command_completion(self, ctx: discord.ApplicationContext):

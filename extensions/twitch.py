@@ -2,8 +2,12 @@ import discord
 import aiosqlite
 import yaml
 import aiohttp
+import asyncio
+import base64
+import json
 
 from discord.ext import commands, tasks
+from playwright.async_api import async_playwright
 
 
 def load_config():
@@ -273,27 +277,26 @@ class Twitch(commands.Cog):
                 if currently_live and not notification_sent:
                     if guild := self.bot.get_guild(int(guild_id)):
                         if channel := guild.get_channel(int(notification_channel_id)):
-                            embed = discord.Embed(
-                                description=f"**{stream_data['data'][0]['user_name']}** is now live on Twitch!",
-                                color=config["COLORS"]["BLURPLE"],
+                            data = json.dumps(stream_data["data"][0])
+                            data = base64.b64encode(data.encode("utf-8")).decode(
+                                "utf-8"
                             )
-                            embed.set_image(
-                                url=stream_data["data"][0]["thumbnail_url"].format(
-                                    width=1280, height=720
+
+                            url = f"https://uni-ui-nine.vercel.app/twitch?data={data}"
+
+                            async with async_playwright() as p:
+                                browser = await p.chromium.launch()
+                                page = await browser.new_page(
+                                    device_scale_factor=4.0,
+                                    viewport={"width": 800, "height": 600},
                                 )
-                            )
-                            embed.add_field(
-                                name="Stream Title",
-                                value=stream_data["data"][0]["title"],
-                            )
-                            embed.add_field(
-                                name="Game",
-                                value=stream_data["data"][0]["game_name"],
-                            )
-                            embed.add_field(
-                                name="Viewers",
-                                value=f"{stream_data['data'][0]['viewer_count']:,}",
-                            )
+                                await page.goto(url)
+                                await asyncio.sleep(2)
+                                await page.locator(".card").screenshot(
+                                    path="temp/now_live.png", type="jpeg", quality=100
+                                )
+                                await browser.close()
+
                             watch_button = discord.ui.Button(
                                 style=discord.ButtonStyle.link,
                                 label="Watch",
@@ -302,7 +305,10 @@ class Twitch(commands.Cog):
                             view = discord.ui.View()
                             view.add_item(watch_button)
 
-                            await channel.send(embed=embed, view=view)
+                            await channel.send(
+                                file=discord.File("temp/now_live.png"),
+                                view=view,
+                            )
                             await cur.execute(
                                 "UPDATE twitch_streamers SET notification_sent = TRUE WHERE channel_name = ?",
                                 (channel_name,),
