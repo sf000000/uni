@@ -5,6 +5,8 @@ import os
 from discord.ext import commands
 from helpers.logger_config import configure_logger
 
+import yaml
+
 
 def load_config():
     with open("config.yml", "r", encoding="utf-8") as config_file:
@@ -40,9 +42,11 @@ class Bot(commands.AutoShardedBot):
             if filename.endswith(".py"):
                 extension = f"{extensions_dir}.{filename[:-3]}"
                 try:
-                    self.load_extension(
-                        extension
-                    ) if extension not in self.extensions else None
+                    (
+                        self.load_extension(extension)
+                        if extension not in self.extensions
+                        else None
+                    )
                 except Exception as e:
                     self.log.error(f"Failed to load extension {extension}\n{e}")
 
