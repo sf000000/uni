@@ -76,8 +76,7 @@ From basic server management to fun games, music playback, and even AI interacti
 11. `/topic` - Sets the topic for the current channel
 12. `/logging enable` - Enable logging in the guild
 13. `/logging disable` - Disable logging in the guild
-14. `/antiphishing` - Enable or disable anti-phishing
-15. `/virustotal above` - Scan the above message's file with VirusTotal
+14. `/virustotal above` - Scan the above message's file with VirusTotal
 
 ### Games and Fun:
 

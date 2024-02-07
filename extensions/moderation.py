@@ -1430,40 +1430,6 @@ class Moderation(commands.Cog):
         except Exception as e:
             await ctx.respond(f"Failed to disable logging: {e}")
 
-    @discord.slash_command(
-        name="antiphishing",
-        description="Enable or disable anti-phishing",
-    )
-    @commands.has_permissions(administrator=True)
-    @commands.guild_only()
-    async def antiphishing(
-        self,
-        ctx: discord.ApplicationContext,
-        enabled: discord.Option(bool, "Enable or disable anti-phishing", required=True),
-    ):
-        await ctx.defer()
-
-        try:
-            async with self.conn.execute(
-                "CREATE TABLE IF NOT EXISTS antiphishing (guild_id INTEGER, enabled INTEGER, PRIMARY KEY(guild_id))"
-            ):
-                await self.conn.commit()
-
-            async with self.conn.execute(
-                "INSERT INTO antiphishing VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET enabled = ?",
-                (ctx.guild.id, enabled, enabled),
-            ):
-                await self.conn.commit()
-
-            await ctx.respond(
-                f"Successfully {'enabled' if enabled else 'disabled'} anti-phishing."
-            )
-
-        except Exception as e:
-            await ctx.respond(
-                f"Failed to {'enable' if enabled else 'disable'}: {e}", ephemeral=True
-            )
-
     _virustotal = discord.commands.SlashCommandGroup(
         name="virustotal", description="Commands related to VirusTotal"
     )
@@ -1653,51 +1619,6 @@ class Moderation(commands.Cog):
             return max(min(safety_score, 100), 0)
         else:
             return 0
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-
-        async with self.conn.execute(
-            "SELECT enabled FROM antiphishing WHERE guild_id = ?",
-            (message.guild.id,),
-        ) as cursor:
-            enabled = await cursor.fetchone()
-
-            if not enabled or not enabled[0]:
-                return
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(PHISHING_DOMAIN_LIST_URL) as response:
-                    if response.status == 200:
-                        data = json.loads(await response.text())
-                        phishing_domains = set(data["domains"])
-
-            if any(domain in message.content for domain in phishing_domains):
-                try:
-                    await message.delete()
-
-                    embed = discord.Embed(
-                        title="Phishing Link Posted",
-                        description=f"{message.author.mention} posted a phishing link in {message.channel.mention}.",
-                        color=config["COLORS"]["DEFAULT"],
-                    )
-                    embed.add_field(name="Message", value=message.content)
-                    embed.add_field(name="Action", value="Message deleted.")
-                    embed.add_field(
-                        name="Time",
-                        value=f"<t:{int(message.created_at.timestamp())}:R>",
-                    )
-
-                    await log(
-                        guild=message.guild,
-                        embed=embed,
-                        conn=self.conn,
-                    )
-
-                except Exception as e:
-                    print(f"Failed to delete a message with a phishing link: {e}")
 
 
 def setup(bot_: discord.Bot):
