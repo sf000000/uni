@@ -2,7 +2,8 @@ import discord
 import aiosqlite
 import aiohttp
 import seaborn as sns
-
+import json
+import base64
 
 from datetime import datetime, timezone
 
@@ -103,3 +104,8 @@ def create_bar_chart(row, ax):
         ax.text(value + 0.1, index, f"  {value}", color="white", ha="left", va="center")
 
     return chart
+
+
+def json_to_base64(json_obj: dict) -> str:
+    json_str = json.dumps(json_obj)
+    return base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
