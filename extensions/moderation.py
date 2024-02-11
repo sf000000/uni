@@ -4,11 +4,12 @@ import yaml
 import datetime
 import re
 import aiohttp
-import json
+import asyncio
 
 from bs4 import BeautifulSoup
 from discord.ext import commands
-from helpers.utils import log
+from helpers.utils import log, json_to_base64
+from playwright.async_api import async_playwright
 
 
 def load_config():
@@ -709,21 +710,34 @@ class Moderation(commands.Cog):
             perm.replace("_", " ").title() for perm, value in role.permissions if value
         )
 
-        embed = discord.Embed(color=role.color, description=key_permissions)
-        embed.add_field(
-            name="Position",
-            value=f"🔢 {role.position}/{len(ctx.guild.roles)}",
-        )
-        embed.add_field(name="Color", value=f"🎨 #{str(role.color)[1:]}", inline=True)
-        embed.add_field(
-            name="Members",
-            value=f"👥 {len(role.members)} | 💚 {online_members} Online",
-        )
-        embed.add_field(
-            name="Created",
-            value=f"📅 <t:{int(role.created_at.timestamp())}:R>",
-        )
-        await ctx.respond(embed=embed)
+        json_obj = {
+            "name": role.name,
+            "color": str(role.color),
+            "position": role.position,
+            "members": len(role.members),
+            "online_members": online_members,
+            "created_at": int(role.created_at.timestamp()),
+            "key_permissions": key_permissions,
+        }
+        data = json_to_base64(json_obj)
+
+        url = f"https://uni-ui-nine.vercel.app/roleinfo?data={data}"
+
+        await ctx.defer()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(
+                device_scale_factor=4.0,
+                viewport={"width": 800, "height": 600},
+            )
+            await page.goto(url)
+            await asyncio.sleep(2)
+            await page.locator(".card").screenshot(
+                path="temp/role-info.png", type="jpeg", quality=100
+            )
+            await browser.close()
+
+        await ctx.respond(file=discord.File("temp/role-info.png"))
 
     @_role.command(
         name="add",

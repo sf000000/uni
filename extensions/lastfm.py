@@ -3,11 +3,12 @@ import aiosqlite
 import yaml
 import aiohttp
 import spotipy
-
+import asyncio
 
 from discord.ext import commands
 from spotipy import SpotifyClientCredentials
-from helpers.utils import create_progress_bar
+from helpers.utils import create_progress_bar, json_to_base64, get_dominant_color
+from playwright.async_api import async_playwright
 
 
 def load_config():
@@ -457,15 +458,36 @@ class LastFM(commands.Cog):
             )
 
         albums = data["topalbums"]["album"]
-        embed = discord.Embed(
-            color=config["COLORS"]["SUCCESS"],
-        )
-        description = "".join(
-            f"{index + 1}. [{album['name']}]({album['url']}) - {album['playcount']} plays\n"
-            for index, album in enumerate(albums[:10])
-        )
-        embed.description = description
-        await ctx.respond(embed=embed)
+
+        top_albums = []
+        for album in albums[:10]:
+            top_albums.append(
+                {
+                    "name": album["name"],
+                    "artist": album["artist"]["name"],
+                    "playcount": album["playcount"],
+                    "image": album["image"][2]["#text"],
+                }
+            )
+
+        data = json_to_base64(top_albums)
+        url = f"https://uni-ui-nine.vercel.app/lastfm/topalbums?data={data}"
+
+        await ctx.defer()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(
+                device_scale_factor=4.0,
+                viewport={"width": 800, "height": 600},
+            )
+            await page.goto(url)
+            await asyncio.sleep(2)
+            await page.locator(".card").screenshot(
+                path="temp/top-albums.png", type="jpeg", quality=100
+            )
+            await browser.close()
+
+        await ctx.respond(file=discord.File("temp/top-albums.png"))
 
     @_lastfm.command(
         name="toptracks",
@@ -500,15 +522,37 @@ class LastFM(commands.Cog):
             )
 
         tracks = data["toptracks"]["track"]
-        embed = discord.Embed(
-            color=config["COLORS"]["SUCCESS"],
-        )
-        description = "".join(
-            f"{index + 1}. [{track['name']}]({track['url']}) - {track['playcount']} plays\n"
-            for index, track in enumerate(tracks[:10])
-        )
-        embed.description = description
-        await ctx.respond(embed=embed)
+
+        top_tracks = []
+        for track in tracks[:10]:
+            top_tracks.append(
+                {
+                    "name": track["name"],
+                    "artist": track["artist"]["name"],
+                    "playcount": track["playcount"],
+                    "image": track["image"][2]["#text"],
+                }
+            )
+
+        data = json_to_base64(top_tracks)
+        url = f"https://uni-ui-nine.vercel.app/lastfm/toptracks?data={data}"
+
+        await ctx.defer()
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(
+                device_scale_factor=4.0,
+                viewport={"width": 800, "height": 600},
+            )
+            await page.goto(url)
+            await asyncio.sleep(2)
+            await page.locator(".card").screenshot(
+                path="temp/top-tracks.png", type="jpeg", quality=100
+            )
+            await browser.close()
+
+        await ctx.respond(file=discord.File("temp/top-tracks.png"))
 
     _spotify = discord.commands.SlashCommandGroup(
         name="spotify", description="Spotify related commands."
@@ -555,24 +599,37 @@ class LastFM(commands.Cog):
         if not spotify_activity:
             return await ctx.respond("You are not currently listening to Spotify.")
 
-        song_title = spotify_activity.title
-        song_artist = ", ".join(spotify_activity.artists)
-        album = spotify_activity.album
-        duration_formatted = "{:02}:{:02}".format(
-            *divmod(int(spotify_activity.duration.total_seconds()), 60)
+        data = json_to_base64(
+            {
+                "title": spotify_activity.title,
+                "artists": spotify_activity.artists,
+                "album": spotify_activity.album,
+                "album_cover_url": spotify_activity.album_cover_url,
+                "start_time": spotify_activity.start.isoformat(),
+                "end_time": spotify_activity.end.isoformat(),
+                "duration": spotify_activity.duration.total_seconds(),
+            }
         )
 
-        embed = discord.Embed(
-            title="Now Playing",
-            color=config["COLORS"]["SUCCESS"],
-        )
-        embed.set_thumbnail(url=spotify_activity.album_cover_url)
-        embed.add_field(name="Song", value=song_title)
-        embed.add_field(name="Artist(s)", value=song_artist)
-        embed.add_field(name="Album", value=album)
-        embed.add_field(name="Duration", value=duration_formatted)
+        url = f"https://uni-ui-nine.vercel.app/spotify/np?data={data}"
 
-        await ctx.respond(embed=embed)
+        print(url)
+
+        await ctx.defer()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(
+                device_scale_factor=4.0,
+                viewport={"width": 800, "height": 600},
+            )
+            await page.goto(url)
+            await asyncio.sleep(2)
+            await page.locator(".card").screenshot(
+                path="temp/spotify-np.png", type="jpeg", quality=100
+            )
+            await browser.close()
+
+        await ctx.respond(file=discord.File("temp/spotify-np.png"))
 
     @_spotify.command(
         name="recommend",
