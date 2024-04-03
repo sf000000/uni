@@ -1,17 +1,15 @@
-import discord
-import aiosqlite
-import yaml
+from typing import Any, Dict, List, Optional
+
 import aiohttp
-
+import discord
 from discord.ext import commands
-from helpers.utils import iso_to_discord_timestamp
-from helpers.constants import file_emoji_dict
+from discord.ui import Select
 
+from helpers.constants import emojis, file_emoji_dict
+from helpers.utils import iso_to_discord, load_config
+from services.github_api import GitHubAPI
 
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
+# TODO: Fix broken emojis
 
 
 def get_file_emoji(file_name):
@@ -24,35 +22,36 @@ def get_file_emoji(file_name):
 config = load_config()
 
 
-class CommitSelectMenu(discord.ui.Select):
-    def __init__(self, commits, *args, **kwargs):
+class CommitSelectMenu(Select):
+    def __init__(self, commits: List[Dict[str, any]], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.commits = commits
 
-    async def get_commit(self, url: str):
+    async def get_commit(self, url: str) -> Dict[str, any]:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    return "Invalid commit."
+                    return {"error": "Invalid commit."}
 
                 commit_info = await resp.json()
-
-        return commit_info
+                return commit_info
 
     async def callback(self, interaction: discord.Interaction):
-        if selected_commit := next(
+        selected_commit: Optional[Dict[str, any]] = next(
             (
                 commit
                 for commit in self.commits
                 if commit["sha"].startswith(self.values[0])
             ),
             None,
-        ):
+        )
+
+        if selected_commit:
             commit_message = selected_commit["commit"]["message"].split("\n")[0]
 
             embed = discord.Embed(
                 title=commit_message,
-                color=config["COLORS"]["DEFAULT"],
+                color=config["colors"]["default"],
             )
             embed.add_field(
                 name="Commit message:",
@@ -60,15 +59,13 @@ class CommitSelectMenu(discord.ui.Select):
                 inline=False,
             )
 
-            comit_ts = iso_to_discord_timestamp(
-                selected_commit["commit"]["author"]["date"]
-            )
+            commit_ts = iso_to_discord(selected_commit["commit"]["author"]["date"])
 
             embed.add_field(
                 name="Info:",
                 value=(
                     f"Committed by  [`{selected_commit['commit']['author']['name']}`]({selected_commit['author']['html_url']}) - "
-                    f"{comit_ts}\n"
+                    f"{commit_ts}\n"
                 ),
                 inline=False,
             )
@@ -106,35 +103,9 @@ class CommitSelectMenu(discord.ui.Select):
 
 
 class Github(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
-        self.db_path = "kino.db"
-        self.bot.loop.create_task(self.setup_db())
-
-    async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
-
-    async def cog_before_invoke(self, ctx: discord.ApplicationContext):
-        command_name = ctx.command.name
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT 1 FROM disabled_commands WHERE command = ?", (command_name,)
-            )
-            if await cur.fetchone():
-                embed = discord.Embed(
-                    title="Command Disabled",
-                    description=f"The command `{command_name}` is currently disabled in this guild.",
-                    color=discord.Color.red(),
-                )
-                embed.set_footer(text="This message will be deleted in 10 seconds.")
-                embed.set_author(
-                    name=self.bot.user.display_name, icon_url=self.bot.user.avatar.url
-                )
-                await ctx.respond(embed=embed, ephemeral=True, delete_after=10)
-                raise commands.CommandInvokeError(
-                    f"Command `{command_name}` is disabled."
-                )
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
+        self.github_api = GitHubAPI()
 
     _git = discord.commands.SlashCommandGroup(
         name="git",
@@ -155,23 +126,31 @@ class Github(commands.Cog):
         ),
         pr_number: discord.Option(int, "The pull request number.", required=True),
     ):
-        if (parts := repo.count("/")) != 1:
+        if repo.count("/") != 1:
             await ctx.respond(
                 "Invalid repository format. The format should be **owner/repo**."
             )
             return
 
-        pr_info = await self.get_pr_info(repo, pr_number)
-        color = config["COLORS"]["DEFAULT"]
+        pr_info: Dict[str, Any] = await self.github_api.get_pr_info(repo, pr_number)
+        color = config["colors"]["default"]
+
+        pr_state_emojis: Dict[str, str] = {
+            "open": emojis["pr_open"],
+            "closed": emojis["pr_closed"],
+            "merged": emojis["pr_merged"],
+        }
+
         embed = discord.Embed(
-            title=f"<:propen:1189443196003045418> {pr_info['title']}",
+            title=f"{pr_state_emojis[pr_info['state']]} {pr_info['title']}",
             url=pr_info["html_url"],
             color=color,
         )
 
-        body_text = (
-            f"{pr_info['body'][:400]}{'...' if len(pr_info['body']) > 400 else ''}"
-        )
+        body_text = pr_info.get("body") or "No description provided."
+        if len(body_text) > 400:
+            body_text = body_text[:400] + "..."
+
         assignee_text = (
             ", ".join(
                 f"[{assignee['login']}]({assignee['html_url']})"
@@ -188,14 +167,12 @@ class Github(commands.Cog):
         embed.add_field(name="Assignees", value=assignee_text)
         embed.add_field(
             name="Created",
-            value=f"{iso_to_discord_timestamp(pr_info['created_at'])}",
+            value=f"{iso_to_discord(pr_info['created_at'])}",
         )
 
         for field_name, key in [("Merged", "merged_at"), ("Closed", "closed_at")]:
             if date := pr_info.get(key):
-                embed.add_field(
-                    name=field_name, value=f"{iso_to_discord_timestamp(date)}"
-                )
+                embed.add_field(name=field_name, value=f"{iso_to_discord(date)}")
 
         embed.set_author(
             name=pr_info["head"]["repo"]["full_name"],
@@ -219,16 +196,22 @@ class Github(commands.Cog):
         ),
         issue_number: discord.Option(int, "The issue number.", required=True),
     ):
-        if (parts := repo.count("/")) != 1:
+        if repo.count("/") != 1:
             await ctx.respond(
                 "Invalid repository format. The format should be **owner/repo**."
             )
             return
 
-        issue_info = await self.get_issue_info(repo, issue_number)
-        color = config["COLORS"]["DEFAULT"]
+        issue_info = await self.github_api.get_issue_info(repo, issue_number)
+        color = config["colors"]["default"]
+
+        issue_state_emojis: Dict[str, str] = {
+            "open": emojis["issue_open"],
+            "closed": emojis["issue_closed"],
+        }
+
         embed = discord.Embed(
-            title=f"<:issue:1189452390433292370> {issue_info['title']}",
+            title=f"{issue_state_emojis[issue_info['state']]} {issue_info['title']}",
             url=issue_info["html_url"],
             color=color,
         )
@@ -250,14 +233,12 @@ class Github(commands.Cog):
         embed.add_field(name="Assignees", value=assignee_text)
         embed.add_field(
             name="Created",
-            value=f"{iso_to_discord_timestamp(issue_info['created_at'])}",
+            value=f"{iso_to_discord(issue_info['created_at'])}",
         )
 
         for field_name, key in [("Closed", "closed_at")]:
             if date := issue_info.get(key):
-                embed.add_field(
-                    name=field_name, value=f"{iso_to_discord_timestamp(date)}"
-                )
+                embed.add_field(name=field_name, value=f"{iso_to_discord(date)}")
 
         embed.set_author(
             name=issue_info["repository_url"].split("/")[-1],
@@ -280,14 +261,14 @@ class Github(commands.Cog):
             required=True,
         ),
     ):
-        if (parts := repo.count("/")) != 1:
+        if repo.count("/") != 1:
             await ctx.respond(
                 "Invalid repository format. The format should be **owner/repo**."
             )
             return
 
-        repo_info = await self.get_repo_info(repo)
-        color = config["COLORS"]["DEFAULT"]
+        repo_info = await self.github_api.get_repo_info(repo)
+        color = config["colors"]["default"]
         embed = discord.Embed(
             title=f"<:repo:1189453310906880041> {repo_info['name']}",
             url=repo_info["html_url"],
@@ -301,7 +282,7 @@ class Github(commands.Cog):
         )
         embed.add_field(
             name="Created",
-            value=f"{iso_to_discord_timestamp(repo_info['created_at'])}",
+            value=f"{iso_to_discord(repo_info['created_at'])}",
         )
 
         await ctx.respond(embed=embed)
@@ -319,8 +300,8 @@ class Github(commands.Cog):
             required=True,
         ),
     ):
-        user_info = await self.get_user_info(user)
-        color = config["COLORS"]["DEFAULT"]
+        user_info = await self.github_api.get_user_info(user)
+        color = config["colors"]["default"]
         embed = discord.Embed(
             title=f"👤 {user_info['login']}",
             url=user_info["html_url"],
@@ -332,7 +313,7 @@ class Github(commands.Cog):
         embed.description = f"{bio}\n\nThis user has a total of 🌟 **{user_info['public_repos']}** public repositories, 🍴 **{user_info['public_gists']}** public gists, and 💬 **{user_info['followers']}** followers."
         embed.add_field(
             name="Created",
-            value=f"{iso_to_discord_timestamp(user_info['created_at'])}",
+            value=f"{iso_to_discord(user_info['created_at'])}",
         )
 
         if user_info["avatar_url"]:
@@ -358,11 +339,9 @@ class Github(commands.Cog):
                 "Invalid repository format. The format should be **owner/repo**."
             )
 
-        commit_info = await self.get_latest_commit_info(repo)
+        commit_info = await self.github_api.get_latest_commit_info(repo)
         if isinstance(commit_info, str):
             return await ctx.respond(commit_info)
-
-        check_mark = "<:checkmark:1189457685171687538>"
 
         description = []
 
@@ -373,13 +352,13 @@ class Github(commands.Cog):
             if len(message) > 50:
                 message = f"{message[:50]}..."
             description.append(
-                f"{check_mark} [`{sha}`]({commit['html_url']}) {message.replace('`', '')}"
+                f"{emojis['check']} [`{sha}`]({commit['html_url']}) {message.replace('`', '')}"
             )
 
         embed = discord.Embed(
-            title=f"<:github:1189461200841482400> Latest commits in `{repo}`",
+            title=f"{emojis['github']} Latest commits in `{repo}`",
             description="\n".join(description),
-            color=config["COLORS"]["DEFAULT"],
+            color=config["colors"]["default"],
             url=f"https://github.com/{repo}",
         )
 
@@ -437,7 +416,7 @@ class Github(commands.Cog):
 
             embed = discord.Embed(
                 title=f"Lines of Code in `{repo}`",
-                color=config["COLORS"]["DEFAULT"],
+                color=config["colors"]["default"],
                 url=f"https://github.com/{repo}",
             )
 
@@ -488,7 +467,7 @@ class Github(commands.Cog):
 
             embed = discord.Embed(
                 title=f"`{repo}`",
-                color=config["COLORS"]["DEFAULT"],
+                color=config["colors"]["default"],
                 url=f"https://github.com/{repo}",
             )
 
@@ -512,61 +491,6 @@ class Github(commands.Cog):
 
             await ctx.respond(embed=embed, view=view)
 
-    async def get_pr_info(self, repo, pr_number):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
-            ) as resp:
-                if resp.status != 200:
-                    return "Invalid repository or pull request number."
 
-                pr_info = await resp.json()
-
-        return pr_info
-
-    async def get_issue_info(self, repo, issue_number):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.github.com/repos/{repo}/issues/{issue_number}"
-            ) as resp:
-                if resp.status != 200:
-                    return "Invalid repository or issue number."
-
-                issue_info = await resp.json()
-
-        return issue_info
-
-    async def get_repo_info(self, repo):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://api.github.com/repos/{repo}") as resp:
-                if resp.status != 200:
-                    return "Invalid repository."
-
-                repo_info = await resp.json()
-
-        return repo_info
-
-    async def get_user_info(self, user):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://api.github.com/users/{user}") as resp:
-                if resp.status != 200:
-                    return "Invalid user."
-
-                user_info = await resp.json()
-
-        return user_info
-
-    async def get_latest_commit_info(self, repo):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.github.com/repos/{repo}/commits"
-            ) as resp:
-                if resp.status != 200:
-                    return "Invalid repository."
-
-                data = await resp.json()
-                return data[:10]
-
-
-def setup(bot_: discord.Bot):
-    bot_.add_cog(Github(bot_))
+def setup(bot: discord.Bot):
+    bot.add_cog(Github(bot))

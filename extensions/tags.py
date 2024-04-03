@@ -1,7 +1,5 @@
 import discord
-import aiosqlite
 import yaml
-
 from discord.ext import commands
 
 
@@ -15,35 +13,9 @@ config = load_config()
 
 
 class Tags(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
-        self.db_path = "kino.db"
-        self.bot.loop.create_task(self.setup_db())
-
-    async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
-
-    async def cog_before_invoke(self, ctx: discord.ApplicationContext):
-        command_name = ctx.command.name
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT 1 FROM disabled_commands WHERE command = ?", (command_name,)
-            )
-            if await cur.fetchone():
-                embed = discord.Embed(
-                    title="Command Disabled",
-                    description=f"The command `{command_name}` is currently disabled in this guild.",
-                    color=discord.Color.red(),
-                )
-                embed.set_footer(text="This message will be deleted in 10 seconds.")
-                embed.set_author(
-                    name=self.bot.user.display_name, icon_url=self.bot.user.avatar.url
-                )
-                await ctx.respond(embed=embed, ephemeral=True, delete_after=10)
-                raise commands.CommandInvokeError(
-                    f"Command `{command_name}` is disabled."
-                )
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
+        self.db = bot.db
 
     _tags = discord.commands.SlashCommandGroup(
         name="tags",
@@ -62,16 +34,18 @@ class Tags(commands.Cog):
             str, description="The content of the tag.", required=True
         ),
     ):
-        async with self.conn.cursor() as cur:
-            try:
-                await cur.execute(
-                    "INSERT INTO tags (guild_id, name, content, author_id) VALUES (?, ?, ?, ?)",
-                    (ctx.guild.id, name, content, ctx.author.id),
-                )
-                await self.conn.commit()
-                await ctx.respond(f"Tag '{name}' added successfully!", ephemeral=True)
-            except aiosqlite.IntegrityError:
-                await ctx.respond(f"Tag '{name}' already exists.", ephemeral=True)
+        try:
+            await self.db.tags.insert_one(
+                {
+                    "guild_id": ctx.guild.id,
+                    "name": name,
+                    "content": content,
+                    "author_id": ctx.author.id,
+                }
+            )
+            await ctx.respond(f"Tag '{name}' added successfully!", ephemeral=True)
+        except discord.errors.DuplicateEntry:
+            await ctx.respond(f"Tag '{name}' already exists.", ephemeral=True)
 
     @_tags.command(
         name="delete",
@@ -82,28 +56,17 @@ class Tags(commands.Cog):
         ctx: discord.ApplicationContext,
         name: discord.Option(str, description="The name of the tag.", required=True),
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT author_id FROM tags WHERE guild_id = ? AND name = ?",
-                (ctx.guild.id, name),
-            )
-            row = await cur.fetchone()
-
-            if row:
-                tag_author_id = row[0]
-                if int(tag_author_id) == ctx.author.id:
-                    await cur.execute(
-                        "DELETE FROM tags WHERE guild_id = ? AND name = ?",
-                        (ctx.guild.id, name),
-                    )
-                    await self.conn.commit()
-                    await ctx.respond(f"Tag '{name}' deleted successfully.")
-                else:
-                    await ctx.respond(
-                        "You do not have permission to delete this tag.", ephemeral=True
-                    )
+        tag = await self.db.tags.find_one({"guild_id": ctx.guild.id, "name": name})
+        if tag:
+            if tag["author_id"] == ctx.author.id:
+                await self.db.tags.delete_one({"guild_id": ctx.guild.id, "name": name})
+                await ctx.respond(f"Tag '{name}' deleted successfully.")
             else:
-                await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
+                await ctx.respond(
+                    "You do not have permission to delete this tag.", ephemeral=True
+                )
+        else:
+            await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
 
     @_tags.command(
         name="author",
@@ -114,43 +77,30 @@ class Tags(commands.Cog):
         ctx: discord.ApplicationContext,
         name: discord.Option(str, description="The name of the tag.", required=True),
     ):
-        guild_id = str(ctx.guild.id)
+        tag = await self.db.tags.find_one({"guild_id": ctx.guild.id, "name": name})
+        if tag:
+            try:
+                tag_author = await self.bot.fetch_user(tag["author_id"])
+            except discord.NotFound:
+                await ctx.respond(
+                    f"Author of tag '{name}' not found on Discord.", ephemeral=True
+                )
+                return
 
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT author_id FROM tags WHERE guild_id = ? AND name = ?",
-                (guild_id, name),
+            embed = discord.Embed(
+                title=f"Tag: {name}",
+                description=f"Author: {tag_author.mention} ({tag['author_id']})",
+                color=self.config["colors"]["default"],
             )
-            row = await cur.fetchone()
+            embed.set_thumbnail(url=tag_author.avatar.url)
 
-            if row:
-                tag_author_id = row[0]
-                try:
-                    tag_author = await self.bot.fetch_user(tag_author_id)
-                except discord.NotFound:
-                    await ctx.respond(
-                        f"Author of tag '{name}' not found on Discord.", ephemeral=True
-                    )
-                    return
-
-                embed = discord.Embed(
-                    title=f"Tag: {name}",
-                    description=f"Author: {tag_author.mention} ({tag_author_id})",
-                    color=config["COLORS"]["DEFAULT"],
-                )
-                embed.set_thumbnail(url=tag_author.avatar.url)
-
-                await cur.execute(
-                    "SELECT COUNT(*) FROM tags WHERE guild_id = ? AND author_id = ?",
-                    (guild_id, tag_author_id),
-                )
-                tag_count_row = await cur.fetchone()
-                tag_count = tag_count_row[0] if tag_count_row else 0
-
-                embed.add_field(name="Total Tags", value=str(tag_count), inline=False)
-                await ctx.respond(embed=embed)
-            else:
-                await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
+            tag_count = await self.db.tags.count_documents(
+                {"guild_id": ctx.guild.id, "author_id": tag["author_id"]}
+            )
+            embed.add_field(name="Total Tags", value=str(tag_count), inline=False)
+            await ctx.respond(embed=embed)
+        else:
+            await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
 
     @_tags.command(
         name="rename",
@@ -164,29 +114,20 @@ class Tags(commands.Cog):
             str, description="The new name of the tag.", required=True
         ),
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT author_id FROM tags WHERE guild_id = ? AND name = ?",
-                (ctx.guild.id, name),
-            )
-            row = await cur.fetchone()
-
-            if row:
-                tag_author_id = row[0]
-                print(type(tag_author_id), type(ctx.author.id))
-                if int(tag_author_id) == ctx.author.id:
-                    await cur.execute(
-                        "UPDATE tags SET name = ? WHERE guild_id = ? AND name = ?",
-                        (new_name, ctx.guild.id, name),
-                    )
-                    await self.conn.commit()
-                    await ctx.respond(f"Tag '{name}' renamed to '{new_name}'.")
-                else:
-                    await ctx.respond(
-                        "You do not have permission to rename this tag.", ephemeral=True
-                    )
+        tag = await self.db.tags.find_one({"guild_id": ctx.guild.id, "name": name})
+        if tag:
+            if tag["author_id"] == ctx.author.id:
+                await self.db.tags.update_one(
+                    {"guild_id": ctx.guild.id, "name": name},
+                    {"$set": {"name": new_name}},
+                )
+                await ctx.respond(f"Tag '{name}' renamed to '{new_name}'.")
             else:
-                await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
+                await ctx.respond(
+                    "You do not have permission to rename this tag.", ephemeral=True
+                )
+        else:
+            await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
 
     @_tags.command(
         name="edit",
@@ -200,28 +141,20 @@ class Tags(commands.Cog):
             str, description="The new content of the tag.", required=True
         ),
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT author_id FROM tags WHERE guild_id = ? AND name = ?",
-                (ctx.guild.id, name),
-            )
-            row = await cur.fetchone()
-
-            if row:
-                tag_author_id = row[0]
-                if int(tag_author_id) == ctx.author.id:
-                    await cur.execute(
-                        "UPDATE tags SET content = ? WHERE guild_id = ? AND name = ?",
-                        (new_content, ctx.guild.id, name),
-                    )
-                    await self.conn.commit()
-                    await ctx.respond(f"Tag '{name}' edited successfully.")
-                else:
-                    await ctx.respond(
-                        "You do not have permission to edit this tag.", ephemeral=True
-                    )
+        tag = await self.db.tags.find_one({"guild_id": ctx.guild.id, "name": name})
+        if tag:
+            if tag["author_id"] == ctx.author.id:
+                await self.db.tags.update_one(
+                    {"guild_id": ctx.guild.id, "name": name},
+                    {"$set": {"content": new_content}},
+                )
+                await ctx.respond(f"Tag '{name}' edited successfully.")
             else:
-                await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
+                await ctx.respond(
+                    "You do not have permission to edit this tag.", ephemeral=True
+                )
+        else:
+            await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
 
     @_tags.command(
         name="search",
@@ -234,26 +167,24 @@ class Tags(commands.Cog):
             str, description="The keyword to search for.", required=True
         ),
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT name FROM tags WHERE guild_id = ? AND name LIKE ?",
-                (ctx.guild.id, f"%{keyword}%"),
-            )
-            rows = await cur.fetchall()
+        tags = await self.db.tags.find(
+            {
+                "guild_id": ctx.guild.id,
+                "name": {"$regex": f".*{keyword}.*", "$options": "i"},
+            }
+        ).to_list(length=None)
 
-            if rows:
-                tag_names = [row[0] for row in rows]
-                tag_names_str = "\n".join(tag_names)
-                embed = discord.Embed(
-                    title=f"Tags matching '{keyword}'",
-                    description=tag_names_str,
-                    color=config["COLORS"]["DEFAULT"],
-                )
-                await ctx.respond(embed=embed)
-            else:
-                await ctx.respond(
-                    f"No tags found matching '{keyword}'.", ephemeral=True
-                )
+        if tags:
+            tag_names = [tag["name"] for tag in tags]
+            tag_names_str = "\n".join(tag_names)
+            embed = discord.Embed(
+                title=f"Tags matching '{keyword}'",
+                description=tag_names_str,
+                color=self.config["colors"]["default"],
+            )
+            await ctx.respond(embed=embed)
+        else:
+            await ctx.respond(f"No tags found matching '{keyword}'.", ephemeral=True)
 
     @_tags.command(
         name="reset",
@@ -263,13 +194,8 @@ class Tags(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "DELETE FROM tags WHERE guild_id = ?",
-                (ctx.guild.id,),
-            )
-            await self.conn.commit()
-            await ctx.respond("Tags reset successfully.", ephemeral=True)
+        await self.db.tags.delete_many({"guild_id": ctx.guild.id})
+        await ctx.respond("Tags reset successfully.", ephemeral=True)
 
     @_tags.command(
         name="random",
@@ -279,22 +205,18 @@ class Tags(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
     ):
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT name, content FROM tags WHERE guild_id = ? ORDER BY RANDOM() LIMIT 1",
-                (ctx.guild.id,),
-            )
-            row = await cur.fetchone()
+        tag = await self.db.tags.aggregate(
+            [{"$match": {"guild_id": ctx.guild.id}}, {"$sample": {"size": 1}}]
+        ).to_list(length=1)
 
-            if row:
-                tag_content = row[1]
-                embed = discord.Embed(
-                    description=tag_content,
-                    color=config["COLORS"]["DEFAULT"],
-                )
-                await ctx.respond(embed=embed)
-            else:
-                await ctx.respond("No tags found.", ephemeral=True)
+        if tag:
+            embed = discord.Embed(
+                description=tag[0]["content"],
+                color=self.config["colors"]["default"],
+            )
+            await ctx.respond(embed=embed)
+        else:
+            await ctx.respond("No tags found.", ephemeral=True)
 
     @_tags.command(
         name="get",
@@ -307,25 +229,16 @@ class Tags(commands.Cog):
             str, description="The name of the tag to retrieve.", required=True
         ),
     ):
-        guild_id = str(ctx.guild.id)
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT content FROM tags WHERE guild_id = ? AND name = ?",
-                (guild_id, name),
+        tag = await self.db.tags.find_one({"guild_id": ctx.guild.id, "name": name})
+        if tag:
+            embed = discord.Embed(
+                description=tag["content"],
+                color=self.config["colors"]["default"],
             )
-            row = await cur.fetchone()
-
-            if row:
-                tag_content = row[0]
-                embed = discord.Embed(
-                    description=tag_content,
-                    color=config["COLORS"]["DEFAULT"],
-                )
-                await ctx.respond(embed=embed)
-            else:
-                await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
+            await ctx.respond(embed=embed)
+        else:
+            await ctx.respond(f"Tag '{name}' not found.", ephemeral=True)
 
 
-def setup(bot_: discord.Bot):
-    bot_.add_cog(Tags(bot_))
+def setup(bot: discord.Bot):
+    bot.add_cog(Tags(bot))

@@ -1,25 +1,17 @@
-import discord
-import yaml
-import wavelink
-import spotipy
 import asyncio
-import datetime
+from typing import List, cast
 
-from spotipy import SpotifyClientCredentials
-from discord.ext import commands
+import discord
+import spotipy
+import wavelink
 from discord.commands import Option, OptionChoice
-from typing import List
-from typing import cast
-from helpers import db_manager
+from discord.ext import commands
+from spotipy import SpotifyClientCredentials
 
-
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
+from helpers.utils import format_time, load_config, truncate_text
 
 config = load_config()
+
 sp = spotipy.Spotify(
     auth_manager=SpotifyClientCredentials(
         client_id=config["spotify"]["client_id"],
@@ -27,13 +19,7 @@ sp = spotipy.Spotify(
     )
 )
 
-
-def format_time(time: int) -> str:
-    return str(datetime.timedelta(milliseconds=time))[2:].split(".")[0]
-
-
-def truncate_text(text: str, max_length: int) -> str:
-    return text if len(text) <= max_length else f"{text[:max_length - 3]}..."
+# TODO: Music functionality is not working as expected. It needs to be fixed.
 
 
 class EffectsSelect(discord.ui.Select):
@@ -113,7 +99,7 @@ class EffectsSelect(discord.ui.Select):
     async def apply_bass_boost(self, filters, player):
         if filters.equalizer.payload[0]["gain"] == 1:
             filters.reset()
-            await player.set_filters(filters, seek=True),
+            (await player.set_filters(filters, seek=True),)
             return
 
         # TODO improve this
@@ -127,7 +113,7 @@ class EffectsSelect(discord.ui.Select):
             and filters.tremolo.payload.get("frequency") == 14
         ):
             filters.reset()
-            await player.set_filters(filters, seek=True),
+            (await player.set_filters(filters, seek=True),)
             return
 
         filters.timescale.set(pitch=1.05)
@@ -135,7 +121,7 @@ class EffectsSelect(discord.ui.Select):
         filters.rotation.set(rotation_hz=0.125)
         filters.equalizer.set(bands=[{"band": 1, "gain": -0.2}])
 
-        await player.set_filters(filters, seek=True),
+        (await player.set_filters(filters, seek=True),)
 
     async def apply_reverb(self, filters, player):
         if (
@@ -144,11 +130,11 @@ class EffectsSelect(discord.ui.Select):
             and filters.reverb.payload.get("wet") == 0.35
         ):
             filters.reset()
-            await player.set_filters(filters, seek=True),
+            (await player.set_filters(filters, seek=True),)
             return
 
         filters.timescale.set(pitch=0.8, rate=0.9)
-        await player.set_filters(filters, seek=True),
+        (await player.set_filters(filters, seek=True),)
 
 
 class MusicPlayerView(discord.ui.View):
@@ -162,13 +148,6 @@ class MusicPlayerView(discord.ui.View):
         self.player = player
         self.playing_messages = playing_messages
         self.bot = bot
-
-        queue_button = discord.ui.Button(
-            style=discord.ButtonStyle.link,
-            label="Queue",
-            url=f"{config['web_url']}/queue/{player.ctx.guild.id}",
-        )
-        self.add_item(queue_button)
 
         select_menu = EffectsSelect()
         self.add_item(select_menu)
@@ -247,55 +226,16 @@ class Music(commands.Cog):
         self.bot = bot_
         self.bot.loop.create_task(self.connect_nodes())
         self.playing_messages = {}
-        self.db_manager = db_manager.DatabaseManager(
-            config["mongodb"]["uri"],
-            config["mongodb"]["database"],
-            config["mongodb"]["collection"],
-        )
 
     async def connect_nodes(self):
         await self.bot.wait_until_ready()
         nodes = [
             wavelink.Node(
                 uri="http://localhost:2333",
-                password="74f57d6cb9964384de92d6a9892e196afcbeb00daf06f14dd6e69746b338d3df",
+                password="youshallnotpass",
             )
         ]
         await wavelink.Pool.connect(nodes=nodes, client=self.bot, cache_capacity=100)
-
-    async def update_queue_db(self, guild_id: int, player: wavelink.Player):
-        if not player:
-            return
-
-        if not player.playing:
-            return
-
-        current_track = {
-            "title": player.current.title,
-            "author": player.current.author,
-            "length": format_time(player.current.length),
-            "uri": player.current.uri,
-            "artwork": player.current.artwork,
-        }
-
-        upcoming_tracks = [
-            {
-                "index": index + 1,
-                "title": track.title,
-                "author": track.author,
-                "length": format_time(track.length),
-                "uri": track.uri,
-                "artwork": track.artwork,
-            }
-            for index, track in enumerate(player.queue)
-        ]
-        tracks_dict = {
-            "guildId": str(guild_id),
-            "current_track": current_track,
-            "upcoming_tracks": upcoming_tracks,
-        }
-
-        self.db_manager.update_queue(str(guild_id), tracks_dict)
 
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
@@ -408,7 +348,6 @@ class Music(commands.Cog):
             )
             embed_method(url=player.current.artwork)
 
-        await self.update_queue_db(player.channel.guild.id, player)
         await message.edit("", embed=embed)
         await message.edit("", embed=embed)
 
@@ -443,12 +382,14 @@ class Music(commands.Cog):
                 )
                 return False
         else:
-            await asyncio.gather(
-                ctx.author.voice.channel.connect(cls=wavelink.Player),
-                ctx.respond(
-                    f"Joined {ctx.author.voice.channel.mention}.",
+            (
+                await asyncio.gather(
+                    ctx.author.voice.channel.connect(cls=wavelink.Player),
+                    ctx.respond(
+                        f"Joined {ctx.author.voice.channel.mention}.",
+                    ),
                 ),
-            ),
+            )
 
         return True
 

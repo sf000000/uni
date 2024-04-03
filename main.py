@@ -1,20 +1,12 @@
 import discord
-import yaml
-import os
-
 from discord.ext import commands
+from motor.motor_asyncio import AsyncIOMotorClient
+
 from helpers.logger_config import configure_logger
-
-import yaml
-
-
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
+from helpers.utils import load_config
 
 config = load_config()
+db = AsyncIOMotorClient(config["db"]["connection_string"])
 
 
 class Bot(commands.AutoShardedBot):
@@ -28,27 +20,46 @@ class Bot(commands.AutoShardedBot):
 
     def __init__(self):
         super().__init__(
-            command_prefix=config["PREFIX"],
+            command_prefix=config["bot"]["prefix"],
             case_insensitive=True,
             intents=discord.Intents.all(),
-            activity=discord.Game(name=config["STATUS"]),
-            status=config["STATUS_TYPE"],
         )
         self.disabled_extensions = []
         self.log = configure_logger()
+        self.config = config
+        self.db = db.uni
 
-        extensions_dir = "extensions"
-        for filename in os.listdir(extensions_dir):
-            if filename.endswith(".py"):
-                extension = f"{extensions_dir}.{filename[:-3]}"
-                try:
-                    (
-                        self.load_extension(extension)
-                        if extension not in self.extensions
-                        else None
-                    )
-                except Exception as e:
-                    self.log.error(f"Failed to load extension {extension}\n{e}")
+        exts = [
+            "extensions.developer",
+            "extensions.github",
+            "extensions.help",
+            "extensions.information",
+            "extensions.fun",
+            "extensions.events",
+            "extensions.lastfm",
+            "extensions.misc",
+            "extensions.moderation",
+            "extensions.music",
+        ]
+        for ext in exts:
+            try:
+                self.load_extension(ext)
+            except Exception as e:
+                self.log.error(f"Failed to load extension {ext}\n{e}")
+
+        # extensions_dir = "extensions"
+
+        # for filename in os.listdir(extensions_dir):
+        #     if filename.endswith(".py"):
+        #         extension = f"{extensions_dir}.{filename[:-3]}"
+        #         try:
+        #             (
+        #                 self.load_extension(extension)
+        #                 if extension not in self.extensions
+        #                 else None
+        #             )
+        #         except Exception as e:
+        #             self.log.error(f"Failed to load extension {extension}\n{e}")
 
         self.load_extension("jishaku")
         self.remove_command("help")
@@ -59,4 +70,4 @@ class Bot(commands.AutoShardedBot):
 
 
 bot = Bot()
-bot.run(config["TOKEN"])
+bot.run(config["bot"]["token"])

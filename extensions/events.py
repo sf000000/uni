@@ -1,57 +1,72 @@
+import datetime
+
 import discord
-import aiosqlite
-import yaml
-
-
 from discord.ext import commands, tasks
-from helpers.top_gg import TopGGManager
 
-
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
+from helpers.utils import load_config
 
 config = load_config()
 
 
 class Events(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
-        self.db_path = "kino.db"
-        self.bot.loop.create_task(self.setup_db())
-        self.top_gg = TopGGManager(config["top_gg"]["api_token"])
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
+        self.db = bot.db
+        self.log = bot.log
 
-        # self.announce_birthdays.start()
-        # self.update_top_gg_stats.start()
+        self.check_reminders.start()
 
-    async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        pass  # TODO: Implement welcome messages
 
-    @tasks.loop(minutes=10)
-    async def update_top_gg_stats(self):
-        await self.bot.wait_until_ready()
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        try:
+            guild_doc = await self.db.guilds.find_one({"guild_id": guild.id})
+            if not guild_doc:
+                await self.db.guilds.insert_one(
+                    {
+                        "guild_id": guild.id,
+                        "welcome_enabled": 0,
+                        "welcome_channel": None,
+                        "leave_enabled": 0,
+                        "leave_channel": None,
+                    }
+                )
+        except Exception as e:
+            self.log(f"Error occurred during on_guild_join: {e}")
 
-        server_count = len(self.bot.guilds)
-        shards = [guild.shard_id for guild in self.bot.guilds]
-        shard_count = len(self.bot.shards)
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild):
+        try:
+            result = await self.db.guilds.delete_one({"guild_id": guild.id})
+            if result.deleted_count == 0:
+                self.bot.logger.warning(f"Guild {guild.id} not found in the database.")
+        except Exception as e:
+            self.log(f"Error occurred during on_guild_remove: {e}")
 
-        await self.top_gg.post_bot_stats(
-            self.bot.user.id, server_count, shards=shards, shard_count=shard_count
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        pass  # TODO: Implement leave messages
+
+    # TODO: make reminder message look better
+    @tasks.loop(seconds=config["constants"]["reminder_check_interval"])
+    async def check_reminders(self):
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        due_reminders = self.db.reminders.find(
+            {"time": {"$lte": current_time.timestamp()}}
         )
 
-    @tasks.loop(minutes=5)
-    async def announce_birthdays(self):
-        await self.bot.wait_until_ready()
-
-        # Table: birthdays
-        # Columns: user_id, guild_id, month, day
-
-        async with self.conn.cursor() as cur:
-            await cur.execute("SELECT * FROM birthdays")
-            birthdays = await cur.fetchall()
+        for reminder in await due_reminders.to_list(length=100):
+            user = self.bot.get_user(reminder["user_id"])
+            if user:
+                try:
+                    await user.send(f"Reminder: {reminder['reminder']}")
+                    await self.db.reminders.delete_one({"_id": reminder["_id"]})
+                except discord.HTTPException as e:
+                    self.log.error(f"Failed to send reminder to {user.name}: {e}")
 
 
-def setup(bot_: discord.Bot):
-    bot_.add_cog(Events(bot_))
+def setup(bot: discord.Bot):
+    bot.add_cog(Events(bot))

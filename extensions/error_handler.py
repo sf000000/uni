@@ -1,24 +1,18 @@
+from typing import Union
+
 import discord
-import yaml
 from discord.ext import commands
 
 
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
-
-config = load_config()
-
-
 class ErrorHandler(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
 
     @commands.Cog.listener()
     async def on_application_command_error(
-        self, ctx: discord.ApplicationContext, error: discord.DiscordException
+        self,
+        ctx: discord.ApplicationContext,
+        error: Union[commands.CommandError, discord.DiscordException],
     ):
         if await self.handle_common_errors(ctx, error):
             return
@@ -35,8 +29,10 @@ class ErrorHandler(commands.Cog):
             raise error
 
     async def handle_common_errors(
-        self, ctx: discord.ApplicationContext, error: discord.DiscordException
-    ):
+        self,
+        ctx: discord.ApplicationContext,
+        error: Union[commands.CommandError, discord.DiscordException],
+    ) -> bool:
         if isinstance(
             error,
             (
@@ -87,5 +83,5 @@ class ErrorHandler(commands.Cog):
         return False
 
 
-def setup(bot_: discord.Bot):
-    bot_.add_cog(ErrorHandler(bot_))
+def setup(bot: discord.Bot):
+    bot.add_cog(ErrorHandler(bot))
