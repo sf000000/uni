@@ -79,7 +79,11 @@ mv config.example.yml config.yml
 mv application.example.yml application.yml
 ```
 
-5. Run the bot:
+5. Run the bot and Lavalink server:
+
+```zsh
+java -jar bin/Lavalink.jar
+```
 
 ```zsh
 python3 main.py
