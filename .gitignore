@@ -232,3 +232,4 @@ application.yml
 config.yml
 logs/
 temp/
+plugins/

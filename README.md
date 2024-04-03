@@ -46,7 +46,7 @@ If you want to self-host this bot, follow these steps:
 1. Clone the repository:
 
 ```zsh
-git clone https://github.com/notjawad/uni.git && cd uni-bot
+git clone https://github.com/notjawad/uni.git && cd uni
 ```
 
 2. Install the required Python packages:
