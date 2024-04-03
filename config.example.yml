@@ -2,11 +2,40 @@ bot:
   # Prefix to use for commands, although most of the bot uses application commands
   prefix: "u."
   # Replace token with your bot token from https://discord.com/developers/applications
-  token: "YOUR_BOT_TOKEN"
+  token: ""
 
 db:
   # https://cloud.mongodb.com
-  connection_string: "mongodb+srv://chaptrhouse:aNx3Y8zH8BCRa0K3@cluster0.oh1ebr1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+  connection_string: ""
+
+lastfm:
+  api_key: ""
+
+# https://developer.spotify.com/dashboard
+spotify:
+  client_id: ""
+  client_secret: ""
+
+# https://stats.fm
+# Storage > Cookies > https://stats.fm > identityToken
+statsfm:
+  api_key: ""
 
 # Repository
 repo: "notjawad/uni"
+
+colors:
+  default: 0x2f3136
+  success: 0x57f287
+  info: 0x3498db
+  brands:
+    lastfm: 0xd51007
+    spotify: 0x1db954
+
+roles:
+  media_muted: "Media Muted"
+
+nuke_image: "https://media1.tenor.com/m/2L8cGGO6_MIAAAAd/operation-teapot-nuke.gif"
+
+constants:
+  reminder_check_interval: 10 # in seconds
