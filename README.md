@@ -63,7 +63,7 @@ git clone https://github.com/notjawad/uni.git && cd uni
 2. Install the required Python packages:
 
 ```zsh
-python3 venv venv
+python3 -m venv venv
 python3 -m pip install -r requirements.txt
 ```
 
@@ -77,6 +77,12 @@ mv config.example.yml config.yml
 
 ```zsh
 mv application.example.yml application.yml
+```
+
+6. Download the latest Lavalink jar
+
+```zsh
+wget -P bin https://github.com/lavalink-devs/Lavalink/releases/download/4.0.4/Lavalink.jar
 ```
 
 5. Run the bot and Lavalink server:
