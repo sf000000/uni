@@ -41,7 +41,7 @@ From basic server management to fun games, music playback, and even AI interacti
 
 # Todo
 
-- [ ] [**extensions/events.py:21**](./extensions/events.py#L21) - Implement welcome messages
+- [x] [**extensions/events.py:21**](./extensions/events.py#L21) - Implement welcome messages
 - [ ] [**extensions/events.py:51**](./extensions/events.py#L51) - Implement leave messages
 - [ ] [**extensions/events.py:53**](./extensions/events.py#L53) - Make reminder message look better
 - [ ] [**extensions/github.py:12**](./extensions/github.py#L12) - Fix broken emojis

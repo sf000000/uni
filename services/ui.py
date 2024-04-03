@@ -18,7 +18,6 @@ class UI:
         )
 
         url = f"{self.base_url}/welcome?data={data}&nodeId=capture"
-        print(url)
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
             return discord.File(BytesIO(response.content), "welcome.png")
