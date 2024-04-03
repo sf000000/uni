@@ -1,3 +1,5 @@
+import os
+
 import discord
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -29,37 +31,19 @@ class Bot(commands.AutoShardedBot):
         self.config = config
         self.db = db.uni
 
-        exts = [
-            "extensions.developer",
-            "extensions.github",
-            "extensions.help",
-            "extensions.information",
-            "extensions.fun",
-            "extensions.events",
-            "extensions.lastfm",
-            "extensions.misc",
-            "extensions.moderation",
-            "extensions.music",
-        ]
-        for ext in exts:
-            try:
-                self.load_extension(ext)
-            except Exception as e:
-                self.log.error(f"Failed to load extension {ext}\n{e}")
+        extensions_dir = "extensions"
 
-        # extensions_dir = "extensions"
-
-        # for filename in os.listdir(extensions_dir):
-        #     if filename.endswith(".py"):
-        #         extension = f"{extensions_dir}.{filename[:-3]}"
-        #         try:
-        #             (
-        #                 self.load_extension(extension)
-        #                 if extension not in self.extensions
-        #                 else None
-        #             )
-        #         except Exception as e:
-        #             self.log.error(f"Failed to load extension {extension}\n{e}")
+        for filename in os.listdir(extensions_dir):
+            if filename.endswith(".py"):
+                extension = f"{extensions_dir}.{filename[:-3]}"
+                try:
+                    (
+                        self.load_extension(extension)
+                        if extension not in self.extensions
+                        else None
+                    )
+                except Exception as e:
+                    self.log.error(f"Failed to load extension {extension}\n{e}")
 
         self.load_extension("jishaku")
         self.remove_command("help")
