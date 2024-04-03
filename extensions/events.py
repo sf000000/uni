@@ -67,7 +67,7 @@ class Events(commands.Cog):
         try:
             result = await self.db.guilds.delete_one({"guild_id": guild.id})
             if result.deleted_count == 0:
-                self.bot.logger.warning(f"Guild {guild.id} not found in the database.")
+                self.log(f"Guild {guild.id} not found in the database.")
         except Exception as e:
             self.log(f"Error occurred during on_guild_remove: {e}")
 
