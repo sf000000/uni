@@ -39,6 +39,17 @@ From basic server management to fun games, music playback, and even AI interacti
 
 </details>
 
+# Todo
+
+- [ ] [**extensions/events.py:21**](./extensions/events.py#L21) - Implement welcome messages
+- [ ] [**extensions/events.py:51**](./extensions/events.py#L51) - Implement leave messages
+- [ ] [**extensions/events.py:53**](./extensions/events.py#L53) - Make reminder message look better
+- [ ] [**extensions/github.py:12**](./extensions/github.py#L12) - Fix broken emojis
+- [ ] [**extensions/information.py:393**](./extensions/information.py#L393) - Change this to use a select menu
+- [ ] [**extensions/moderation.py:334**](./extensions/moderation.py#L334) - Implement role info command
+- [ ] [**extensions/music.py:22**](./extensions/music.py#L22) - Music functionality is not working as expected. It needs to be fixed.
+- [ ] [**extensions/spotify.py:4**](./extensions/spotify.py#L4) - Implement Spotify commands
+
 ## Self Hosting
 
 If you want to self-host this bot, follow these steps:
