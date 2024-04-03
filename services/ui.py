@@ -2,6 +2,7 @@ from io import BytesIO
 
 import discord
 import httpx
+from httpx import Timeout
 
 from helpers.utils import json_to_base64
 
@@ -19,5 +20,5 @@ class UI:
 
         url = f"{self.base_url}/welcome?data={data}&nodeId=capture"
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url, timeout=Timeout(10, 60))
             return discord.File(BytesIO(response.content), "welcome.png")
