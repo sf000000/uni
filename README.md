@@ -39,6 +39,43 @@ From basic server management to fun games, music playback, and even AI interacti
 
 </details>
 
+## Self Hosting
+
+If you want to self-host this bot, follow these steps:
+
+1. Clone the repository:
+
+```zsh
+git clone https://github.com/notjawad/uni.git && cd uni-bot
+```
+
+2. Install the required Python packages:
+
+```zsh
+python3 venv venv
+python3 -m pip install -r requirements.txt
+```
+
+3. Rename [`config.example.yml`]() file to `config.yml` and fill with your bot’s token and other configuration details.
+
+```zsh
+mv config.example.yml config.yml
+```
+
+3. Rename [`application.example.yml`]() file to `application.yml` and fill with your Spotify tokens and other configuration details.
+
+```zsh
+mv application.example.yml application.yml
+```
+
+5. Run the bot:
+
+```zsh
+python3 main.py
+```
+
+Please note that you need Python 3.8 or higher to run this bot.
+
 ## Contribute
 
 Uni is an open-source project, and contributions are welcome! If you have coding skills or want to contribute in other ways, feel free to get involved. Here's how you can contribute:
