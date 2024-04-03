@@ -233,3 +233,4 @@ config.yml
 logs/
 temp/
 plugins/
+*.sh
