@@ -56,13 +56,13 @@ python3 venv venv
 python3 -m pip install -r requirements.txt
 ```
 
-3. Rename [`config.example.yml`]() file to `config.yml` and fill with your bot’s token and other configuration details.
+3. Rename [`config.example.yml`](./config.example.yml) file to `config.yml` and fill with your bot’s token and other configuration details.
 
 ```zsh
 mv config.example.yml config.yml
 ```
 
-3. Rename [`application.example.yml`]() file to `application.yml` and fill with your Spotify tokens and other configuration details.
+4. Rename [`application.example.yml`](./application.example.yml) file to `application.yml` and fill with your Spotify tokens and other configuration details.
 
 ```zsh
 mv application.example.yml application.yml
