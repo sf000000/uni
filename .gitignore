@@ -228,16 +228,7 @@ $RECYCLE.BIN/
 *.lnk
 
 # Misc
-cookies/
-config.yml
-kino.db
-kino.db-journal
-start.bat
 application.yml
-Lavalink.jar
-chromedriver.exe
-geckodriver.exe
+config.yml
 logs/
-startup.sh
-plugins/
-temp
+temp/

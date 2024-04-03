@@ -1,0 +1,12 @@
+bot:
+  # Prefix to use for commands, although most of the bot uses application commands
+  prefix: "u."
+  # Replace token with your bot token from https://discord.com/developers/applications
+  token: "YOUR_BOT_TOKEN"
+
+db:
+  # https://cloud.mongodb.com
+  connection_string: "mongodb+srv://chaptrhouse:aNx3Y8zH8BCRa0K3@cluster0.oh1ebr1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+# Repository
+repo: "notjawad/uni"

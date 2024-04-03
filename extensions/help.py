@@ -1,27 +1,27 @@
+from typing import List
+
 import discord
-import aiosqlite
-import yaml
-
+from discord.commands import ApplicationContext, SlashCommand
 from discord.ext import commands
-from helpers.constants import commands_with_tips
 
-
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
+from helpers.utils import load_config
 
 config = load_config()
 
 
 class HelpPaginator(discord.ui.View):
-    def __init__(self, help_command, commands, *args, **kwargs):
+    def __init__(
+        self,
+        help_command,
+        commands,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs, timeout=60)
         self.help_command = help_command
         self.commands = commands
-        self.current_page = 0
-        self.max_page = len(commands) // 8 + 1
+        self.current_page: int = 0
+        self.max_page: int = len(commands) // 8 + 1
 
         self.add_item(
             discord.ui.Button(
@@ -63,17 +63,17 @@ class HelpPaginator(discord.ui.View):
         self.children[3].callback = self.go_to_end
         self.children[4].callback = self.close_help_command
 
-    def create_embed(self):
+    def create_embed(self) -> discord.Embed:
         if self.current_page == 0:
             return self.create_introductory_embed()
         else:
             return self.create_command_embed()
 
-    def create_introductory_embed(self):
+    def create_introductory_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="📘 Help Command Guide",
             description="Learn how to navigate and utilize the bot's commands for a seamless experience!",
-            color=config["COLORS"]["DEFAULT"],
+            color=config["colors"]["default"],
         )
         embed.add_field(
             name="🔢 Navigating Pages",
@@ -83,11 +83,6 @@ class HelpPaginator(discord.ui.View):
         embed.add_field(
             name="🔍 Understanding Commands",
             value="Commands are listed with details. Required arguments are in **<angle brackets>**, optional ones in **[square brackets]**. Parameters describe what should be entered.",
-            inline=False,
-        )
-        embed.add_field(
-            name="🌟 Premium Commands",
-            value=f"Look for the {config['EMOJIS']['PREMIUM']} emoji for premium commands. They might need special permissions or subscriptions.",
             inline=False,
         )
         embed.add_field(
@@ -105,12 +100,6 @@ class HelpPaginator(discord.ui.View):
             value="Need more specific help with a command? Use `/help [command]` to get detailed instructions about a particular command.",
             inline=False,
         )
-        embed.add_field(
-            name="🔐 Privacy & Permissions",
-            value="Your privacy is important. The bot operates under strict data handling policies. Ensure you have the necessary permissions in your server to use commands.",
-            inline=False,
-        )
-        embed.set_thumbnail(url="https://files.catbox.moe/vx7txo.png")
         return embed
 
     async def on_timeout(self):
@@ -149,9 +138,9 @@ class HelpPaginator(discord.ui.View):
         await interaction.response.edit_message(view=None)
         await interaction.message.delete()
 
-    def create_command_embed(self):
+    def create_command_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            color=config["COLORS"]["DEFAULT"],
+            color=config["colors"]["default"],
         )
 
         start_index = (self.current_page - 1) * 8
@@ -168,11 +157,8 @@ class HelpPaginator(discord.ui.View):
                 if command.parent
                 else command.name
             )
-            premium = ""
-            if full_name in self.help_command.cog.premium_commands:
-                premium = " " + config["EMOJIS"]["PREMIUM"]
 
-            description_lines = [command.description or "No description"]
+            description_lines: List[str] = [command.description or "No description"]
 
             if isinstance(command, discord.commands.SlashCommand):
                 for option in command.options:
@@ -182,9 +168,7 @@ class HelpPaginator(discord.ui.View):
 
             full_description = "\n".join(description_lines)
 
-            embed.add_field(
-                name=full_name + premium, value=full_description, inline=False
-            )
+            embed.add_field(name=full_name, value=full_description, inline=False)
 
         embed.set_footer(text=f"Page {self.current_page + 1}/{self.max_page + 1}")
 
@@ -192,32 +176,17 @@ class HelpPaginator(discord.ui.View):
 
 
 class Help(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
-        self.db_path = "kino.db"
-        self.premium_commands = set()
-        self.bot.loop.create_task(self.setup_db())
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
 
-    async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
-        async with self.conn.execute(
-            "SELECT command_name FROM premium_commands"
-        ) as cursor:
-            premium_commands = await cursor.fetchall()
-            self.premium_commands = {cmd[0] for cmd in premium_commands}
-
-    async def show_specific_command_help(self, ctx, command):
-        premium = ""
-        if f"/{command.qualified_name}" in self.premium_commands:
-            premium = " " + config["EMOJIS"]["PREMIUM"]
-
+    async def show_specific_command_help(self, ctx: ApplicationContext, command):
         embed = discord.Embed(
-            title=f"`{command.qualified_name}`{premium}",
+            title=f"`{command.qualified_name}`",
             description=command.description or "No description available.",
-            color=config["COLORS"]["DEFAULT"],
+            color=config["colors"]["default"],
         )
 
-        if isinstance(command, discord.commands.SlashCommand):
+        if isinstance(command, SlashCommand):
             embed.add_field(
                 name="Usage",
                 value=f"```/{command.qualified_name} { ' '.join([f'<{opt.name}>' for opt in command.options]) }```",
@@ -230,29 +199,7 @@ class Help(commands.Cog):
                     inline=False,
                 )
 
-        command_path = f"/{command.full_parent_name} {command.name}".strip()
-
-        if command_path in commands_with_tips:
-            tips_data = commands_with_tips[command_path]
-
-            tips_button = discord.ui.Button(
-                emoji="🔍", style=discord.ButtonStyle.secondary
-            )
-
-            async def tips_button_callback(interaction: discord.Interaction):
-                await interaction.response.send_message(
-                    f"**Extra tips for `{command_path}`**\n\n{tips_data['description']}\n\n**Example**\n{tips_data['example']}\n{tips_data['image']}",
-                    ephemeral=True,
-                )
-
-            tips_button.callback = tips_button_callback
-
-            view = discord.ui.View()
-            view.add_item(tips_button)
-
-            await ctx.respond(embed=embed, view=view)
-        else:
-            await ctx.respond(embed=embed)
+        await ctx.respond(embed=embed)
 
     @discord.slash_command(
         name="help",
@@ -260,7 +207,7 @@ class Help(commands.Cog):
     )
     async def _help(
         self,
-        ctx: discord.ApplicationContext,
+        ctx: ApplicationContext,
         command_name: discord.Option(
             str, description="The command to get help for.", required=False
         ),
@@ -289,13 +236,11 @@ class Help(commands.Cog):
                 "error_handler",
             ]
 
-            commands = [
+            commands: List[discord.commands.SlashCommand] = [
                 cmd
                 for cmd in self.bot.walk_application_commands()
-                if isinstance(cmd, discord.commands.SlashCommand)
-                and (
-                    cmd.parent is None or isinstance(cmd, discord.commands.SlashCommand)
-                )
+                if isinstance(cmd, SlashCommand)
+                and (cmd.parent is None or isinstance(cmd, SlashCommand))
                 and (cmd.cog is None or cmd.cog.qualified_name.lower() not in skip_cogs)
             ]
 

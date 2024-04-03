@@ -1,61 +1,28 @@
-import discord
-import yaml
-import aiohttp
-import io
 import datetime
-import pytz
-import aiosqlite
+import os
 import platform
+from io import BytesIO
+
+import discord
+import httpx
 import psutil
+import pytz
+import undetected_chromedriver as uc
+from dateparser import parse
+from discord.ext import commands
 
-from discord.ext import commands, tasks
-from colorthief import ColorThief
-from helpers.utils import fetch_latest_commit_info, iso_to_discord_timestamp
-from helpers.top_gg import TopGGManager
-
-
-def load_config():
-    with open("config.yml", "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
-
-
-config = load_config()
+from helpers.utils import iso_to_discord, nano_id
+from services.github_api import GitHubAPI
 
 
 class Information(commands.Cog):
-    def __init__(self, bot_: discord.Bot):
-        self.bot = bot_
-        self.db_path = "kino.db"
-        self.bot.loop.create_task(self.setup_db())
-        self.check_reminders.start()
-        self.bot_started = datetime.datetime.now()
-        self.top_gg = TopGGManager(config["top_gg"]["api_token"])
-
-    async def setup_db(self):
-        self.conn = await aiosqlite.connect(self.db_path)
-
-    async def cog_before_invoke(self, ctx: discord.ApplicationContext):
-        command_name = ctx.command.name
-
-        async with self.conn.cursor() as cur:
-            await cur.execute(
-                "SELECT 1 FROM disabled_commands WHERE command = ?", (command_name,)
-            )
-            if await cur.fetchone():
-                embed = discord.Embed(
-                    title="Command Disabled",
-                    description=f"The command `{command_name}` is currently disabled in this guild.",
-                    color=discord.Color.red(),
-                )
-                embed.set_footer(text="This message will be deleted in 10 seconds.")
-                embed.set_author(
-                    name=self.bot.user.display_name, icon_url=self.bot.user.avatar.url
-                )
-                await ctx.respond(embed=embed, ephemeral=True, delete_after=10)
-                raise commands.CommandInvokeError(
-                    f"Command `{command_name}` is disabled."
-                )
+    def __init__(self, bot: discord.Bot):
+        self.bot = bot
+        self.db = bot.db
+        self.log = bot.log
+        self.config = bot.config
+        self.github_api = GitHubAPI()
+        self.start_time = datetime.datetime.now()
 
     @discord.slash_command(
         name="ping",
@@ -87,29 +54,24 @@ class Information(commands.Cog):
             description="The emoji to use for the sticker",
             required=True,
         ),
-        sticker_url: discord.Option(
-            str,
-            description="The URL of the sticker",
+        sticker: discord.Option(
+            discord.Attachment,
+            description="The sticker to add",
             required=True,
         ),
     ):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(sticker_url) as resp:
-                if resp.status != 200:
-                    return await ctx.respond(
-                        "Could not download sticker.", ephemeral=True
-                    )
-                try:
-                    created_sticker = await ctx.guild.create_sticker(
-                        name=name,
-                        file=discord.File(io.BytesIO(await resp.read()), filename=name),
-                        emoji=emoji,
-                    )
-                except discord.HTTPException:
-                    return await ctx.respond(
-                        "Could not create sticker.", ephemeral=True
-                    )
-                await ctx.respond(f"Created sticker `{created_sticker.name}`. 🎉")
+        try:
+            created_sticker = await ctx.guild.create_sticker(
+                name=name,
+                file=discord.File(BytesIO(await sticker.read()), "sticker.png"),
+                emoji=emoji,
+            )
+            await ctx.respond(f"Created sticker `{created_sticker.name}`. 🎉")
+        except Exception as e:
+            self.log.error(e)
+            return await ctx.respond(
+                f"Could not create sticker. ```py\n{e}```", ephemeral=True
+            )
 
     @_sticker.command(
         name="remove",
@@ -127,7 +89,7 @@ class Information(commands.Cog):
         if not sticker:
             return await ctx.respond("Sticker not found.", ephemeral=True)
         await sticker.delete()
-        await ctx.respond(f"Deleted sticker `{sticker.name}`. 🗑️")
+        await ctx.respond(f"🗑️ Deleted sticker `{sticker.name}`.")
 
     @_sticker.command(
         name="tag",
@@ -169,29 +131,25 @@ class Information(commands.Cog):
     async def timezone_set(
         self,
         ctx: discord.ApplicationContext,
-        timezone: str = discord.Option(
-            description="Select your timezone (Case sensitive)",
+        timezone: discord.Option(
+            str,
+            description="The timezone to set",
             required=True,
         ),
     ):
         if timezone not in pytz.common_timezones:
             return await ctx.respond("Invalid timezone. Use `/timezone list`.")
-
-        async with self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS user_timezones (guild_id INTEGER, user_id INTEGER PRIMARY KEY, timezone TEXT)"
-        ):
-            pass
-
-        async with self.conn.execute(
-            "INSERT OR REPLACE INTO user_timezones (guild_id, user_id, timezone) VALUES (?, ?, ?)",
-            (ctx.guild.id, ctx.author.id, timezone),
-        ):
-            pass
+        user_timezones = self.bot.db.user_timezones
+        await user_timezones.update_one(
+            {"guild_id": ctx.guild.id, "user_id": ctx.author.id},
+            {"$set": {"timezone": timezone}},
+            upsert=True,
+        )
 
         embed = discord.Embed(
             title="Timezone Set",
             description=f"Your timezone has been set to `{timezone}`.",
-            color=config["COLORS"]["SUCCESS"],
+            color=self.config["colors"]["success"],
         )
 
         tz = pytz.timezone(timezone)
@@ -224,27 +182,27 @@ class Information(commands.Cog):
     async def timezone_get(
         self,
         ctx: discord.ApplicationContext,
-        user: discord.User = discord.Option(
+        user: discord.Option(
+            discord.Member,
             description="The user to get the timezone of",
             required=True,
         ),
     ):
-        async with self.conn.execute(
-            "SELECT timezone FROM user_timezones WHERE guild_id = ? AND user_id = ?",
-            (ctx.guild.id, user.id),
-        ) as cursor:
-            result = await cursor.fetchone()
+        user_timezones = self.bot.db.user_timezones
+        result = await user_timezones.find_one(
+            {"guild_id": ctx.guild_id, "user_id": user.id}
+        )
 
         if not result:
             return await ctx.respond("User has not set their timezone.")
 
         embed = discord.Embed(
             title="Timezone",
-            description=f"{user.mention}'s timezone is `{result[0]}`.",
-            color=config["COLORS"]["SUCCESS"],
+            description=f"{user.mention}'s timezone is `{result['timezone']}`.",
+            color=self.config["colors"]["success"],
         )
 
-        tz = pytz.timezone(result[0])
+        tz = pytz.timezone(result["timezone"])
         now = datetime.datetime.now(tz)
 
         formatted_12_hour_time = now.strftime("%I:%M %p").lstrip("0").replace(" 0", " ")
@@ -262,41 +220,15 @@ class Information(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
     ):
-        async with self.conn.execute(
-            "DELETE FROM user_timezones WHERE guild_id = ? AND user_id = ?",
-            (ctx.guild.id, ctx.author.id),
-        ):
-            pass
-
-        await ctx.respond("Your timezone has been removed.")
-
-    @_timezone.command(
-        name="all",
-        description="List all users' timezones",
-    )
-    async def timezone_all(
-        self,
-        ctx: discord.ApplicationContext,
-    ):
-        async with self.conn.execute(
-            "SELECT user_id, timezone FROM user_timezones WHERE guild_id = ?",
-            (ctx.guild.id,),
-        ) as cursor:
-            results = await cursor.fetchall()
-
-        if not results:
-            return await ctx.respond("No users have set their timezones.")
-
-        embed = discord.Embed(
-            title="Timezones",
-            color=config["COLORS"]["SUCCESS"],
+        user_timezones = self.bot.db.user_timezones
+        result = await user_timezones.delete_one(
+            {"guild_id": ctx.guild.id, "user_id": ctx.author.id}
         )
 
-        for user_id, timezone in results:
-            user = await self.bot.fetch_user(user_id)
-            embed.add_field(name=user.display_name, value=timezone)
-
-        await ctx.respond(embed=embed)
+        if result.deleted_count > 0:
+            await ctx.respond("Your timezone has been removed.")
+        else:
+            await ctx.respond("You haven't set your timezone yet.")
 
     @discord.slash_command(
         name="define",
@@ -305,55 +237,26 @@ class Information(commands.Cog):
     async def define(
         self,
         ctx: discord.ApplicationContext,
-        word: str = discord.Option(
+        word: discord.Option(
+            str,
             description="The word to define",
             required=True,
         ),
     ):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.respond(
-                        "Could not get definition.", ephemeral=True
-                    )
-                data = await resp.json()
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(
+                    f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except httpx.HTTPError:
+                return await ctx.respond("Could not get definition.", ephemeral=True)
 
         embed = discord.Embed(
             title=data[0]["word"],
             description=data[0]["meanings"][0]["definitions"][0]["definition"],
-            color=config["COLORS"]["INVISIBLE"],
-        )
-
-        await ctx.respond(embed=embed)
-
-    @discord.slash_command(
-        name="urban",
-        description="Get the Urban Dictionary definition of a word.",
-    )
-    async def urban(
-        self,
-        ctx: discord.ApplicationContext,
-        word: str = discord.Option(
-            description="The word to define",
-            required=True,
-        ),
-    ):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.urbandictionary.com/v0/define?term={word}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.respond(
-                        "Could not get definition.", ephemeral=True
-                    )
-                data = await resp.json()
-
-        embed = discord.Embed(
-            title=data["list"][0]["word"],
-            description=data["list"][0]["definition"],
-            color=config["COLORS"]["INVISIBLE"],
+            color=self.config["colors"]["default"],
         )
 
         await ctx.respond(embed=embed)
@@ -365,20 +268,23 @@ class Information(commands.Cog):
     async def inviteinfo(
         self,
         ctx: discord.ApplicationContext,
-        invite_code: str = discord.Option(
+        invite_code: discord.Option(
+            str,
             description="The invite code to get information about",
             required=True,
         ),
     ):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://discord.com/api/v9/invites/{invite_code}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.respond(
-                        "Could not get invite information.", ephemeral=True
-                    )
-                data = await resp.json()
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(
+                    f"https://discord.com/api/v9/invites/{invite_code}"
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except httpx.HTTPError:
+                return await ctx.respond(
+                    "Could not get invite information.", ephemeral=True
+                )
 
         timestamp = datetime.datetime.strptime(
             data["expires_at"], "%Y-%m-%dT%H:%M:%S%z"
@@ -388,42 +294,12 @@ class Information(commands.Cog):
         embed = discord.Embed(
             title=data["guild"]["name"],
             description=data["guild"]["description"],
-            color=config["COLORS"]["INVISIBLE"],
+            color=self.config["colors"]["default"],
         )
         embed.add_field(name="Expires", value=f"<t:{int(timestamp)}:R>")
         embed.set_image(url=banner)
 
         await ctx.respond(embed=embed)
-
-    @discord.slash_command(
-        name="hex",
-        description="Grab the most dominant color from an image",
-    )
-    async def hex(
-        self,
-        ctx: discord.ApplicationContext,
-        image_url: str = discord.Option(
-            description="The image to get the color from", required=True
-        ),
-    ):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url) as resp:
-                if resp.status != 200:
-                    return await ctx.respond("Could not get image.", ephemeral=True)
-
-                data = await resp.read()
-
-                color_thief = ColorThief(io.BytesIO(data))
-                dominant_color = color_thief.get_color(quality=1)
-                hex_color = f"#{dominant_color[0]:02x}{dominant_color[1]:02x}{dominant_color[2]:02x}"
-
-                embed = discord.Embed(
-                    title="Dominant Color",
-                    description=hex_color,
-                    color=discord.Color.from_rgb(*dominant_color),
-                )
-                embed.set_thumbnail(url=image_url)
-                await ctx.respond(embed=embed)
 
     @discord.slash_command(
         name="screenshot",
@@ -432,107 +308,19 @@ class Information(commands.Cog):
     async def screenshot(
         self,
         ctx: discord.ApplicationContext,
-        url: str = discord.Option(
-            description="The website to screenshot", required=True
+        url: discord.Option(
+            str, description="The website to screenshot", required=True
         ),
     ):
         await ctx.defer()
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://image.thum.io/get/width/1920/crop/675/noanimate/{url}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.respond(
-                        "Could not get screenshot.", ephemeral=True
-                    )
+        driver = uc.Chrome(headless=True, use_subprocess=False)
+        driver.get(url)
+        driver.save_screenshot(f"temp/{ctx.author.id}.png")
 
-                data = await resp.read()
+        await ctx.respond(file=discord.File(f"temp/{ctx.author.id}.png"))
 
-                embed = discord.Embed(
-                    title="Screenshot",
-                    color=config["COLORS"]["INVISIBLE"],
-                )
-                embed.set_image(url="attachment://screenshot.png")
-                await ctx.respond(
-                    embed=embed,
-                    file=discord.File(io.BytesIO(data), filename="screenshot.png"),
-                )
-
-    _highlight = discord.commands.SlashCommandGroup(
-        name="highlight",
-        description="Set notifications for when a keyword is said",
-    )
-
-    @_highlight.command(
-        name="add",
-        description="Add a highlighted keyword",
-    )
-    async def highlight_add(
-        self,
-        ctx: discord.ApplicationContext,
-        keyword: str = discord.Option(
-            description="The keyword to highlight", required=True
-        ),
-    ):
-        async with self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS highlight_keywords (guild_id INTEGER, user_id INTEGER, keyword TEXT)"
-        ):
-            pass
-
-        async with self.conn.execute(
-            "INSERT INTO highlight_keywords (guild_id, user_id, keyword) VALUES (?, ?, ?)",
-            (ctx.guild.id, ctx.author.id, keyword),
-        ):
-            pass
-
-        await ctx.respond(f"Added **{keyword}** to your highlights.")
-
-    @_highlight.command(
-        name="remove",
-        description="Remove a highlighted keyword",
-    )
-    async def highlight_remove(
-        self,
-        ctx: discord.ApplicationContext,
-        keyword: str = discord.Option(
-            description="The keyword to remove", required=True
-        ),
-    ):
-        async with self.conn.execute(
-            "DELETE FROM highlight_keywords WHERE guild_id = ? AND user_id = ? AND keyword = ?",
-            (ctx.guild.id, ctx.author.id, keyword),
-        ):
-            pass
-
-        await ctx.respond(f"Removed **{keyword}** from your highlights.")
-
-    @_highlight.command(
-        name="list",
-        description="List your highlighted keywords",
-    )
-    async def highlight_list(
-        self,
-        ctx: discord.ApplicationContext,
-    ):
-        async with self.conn.execute(
-            "SELECT keyword FROM highlight_keywords WHERE guild_id = ? AND user_id = ?",
-            (ctx.guild.id, ctx.author.id),
-        ) as cursor:
-            results = await cursor.fetchall()
-
-        if not results:
-            return await ctx.respond("You have no highlighted keywords.")
-
-        embed = discord.Embed(
-            title="Highlighted Keywords",
-            color=config["COLORS"]["SUCCESS"],
-        )
-
-        for keyword in results:
-            embed.add_field(name=keyword[0], value="")
-
-        await ctx.respond(embed=embed)
+        os.remove(f"temp/{ctx.author.id}.png")
 
     _reminders = discord.commands.SlashCommandGroup(
         name="reminders", description="Reminder related commands."
@@ -567,45 +355,50 @@ class Information(commands.Cog):
         ),
     ):
         try:
-            time = datetime.datetime.strptime(time, "%Y-%m-%d %H:%M")
-        except ValueError:
+            future_time = parse(
+                time,
+                settings={
+                    "TIMEZONE": "UTC",
+                    "PREFER_DATES_FROM": "future",
+                    "RELATIVE_BASE": datetime.datetime.now(datetime.timezone.utc),
+                },
+            )
+
+        except Exception as e:
+            self.log.error(e)
+
+        if not future_time:
             return await ctx.respond(
-                "Invalid time format. Please use `YYYY-MM-DD HH:MM`.",
+                "Could not parse time. Please use a valid time format.",
                 ephemeral=True,
             )
 
-        if time < datetime.datetime.now(datetime.timezone.utc):
-            return await ctx.respond(
-                "Time cannot be in the past.",
-                ephemeral=True,
-            )
+        if future_time < datetime.datetime.now():
+            return await ctx.respond("Time cannot be in the past.", ephemeral=True)
 
-        async with self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, guild_id INTEGER, time TEXT, reminder TEXT)"
-        ):
-            pass
+        reminder_doc = {
+            "reminder_id": nano_id(),
+            "user_id": ctx.author.id,
+            "guild_id": ctx.guild_id,
+            "time": int(future_time.timestamp()),
+            "reminder": reminder,
+        }
 
-        async with self.conn.execute(
-            "INSERT INTO reminders (user_id, guild_id, time, reminder) VALUES (?, ?, ?, ?)",
-            (ctx.author.id, ctx.guild.id, time.strftime("%Y-%m-%d %H:%M"), reminder),
-        ):
-            pass
+        await self.db.reminders.insert_one(reminder_doc)
 
         await ctx.respond(
-            f"Reminder set for <t:{int(time.timestamp())}:R>.",
-            ephemeral=True,
+            f"Reminder set for <t:{int(future_time.timestamp())}:F>.",
         )
 
+    # TODO: Change this to use a select menu, the same as the github commits command.
     @_reminders.command(
         name="view",
         description="View a list of your reminders.",
     )
     async def reminders_view(self, ctx: discord.ApplicationContext):
-        async with self.conn.execute(
-            "SELECT time, reminder, id FROM reminders WHERE user_id = ? AND guild_id = ?",
-            (ctx.author.id, ctx.guild.id),
-        ) as cursor:
-            reminders = await cursor.fetchall()
+        reminders = await self.db.reminders.find(
+            {"user_id": ctx.author.id, "guild_id": ctx.guild.id}
+        ).to_list(length=None)
 
         if not reminders:
             return await ctx.respond(
@@ -615,16 +408,14 @@ class Information(commands.Cog):
 
         embed = discord.Embed(
             title="Reminders",
-            color=config["COLORS"]["SUCCESS"],
+            color=self.config["colors"]["success"],
         )
 
         for reminder in reminders:
-            reminder_timestamp = datetime.datetime.strptime(
-                reminder[0], "%Y-%m-%d %H:%M:%S"
-            )
+            reminder_timestamp = datetime.datetime.fromtimestamp(reminder["time"])
             embed.add_field(
-                name=f"Reminder #{reminder[2]}",
-                value=f"Time: <t:{int(reminder_timestamp.timestamp())}:R>\nReminder: {reminder[1]}",
+                name=f"#{reminder['reminder_id']}",
+                value=f"Time: <t:{int(reminder_timestamp.timestamp())}:R>\nReminder: {reminder['reminder']}",
                 inline=False,
             )
 
@@ -634,7 +425,7 @@ class Information(commands.Cog):
         name="delete",
         description="Delete a reminder.",
         reminder_id=discord.Option(
-            int,
+            str,
             description="The ID of the reminder to delete.",
             required=True,
         ),
@@ -643,16 +434,24 @@ class Information(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
         reminder_id: discord.Option(
-            int,
+            str,
             description="The ID of the reminder to delete.",
             required=True,
         ),
     ):
-        async with self.conn.execute(
-            "DELETE FROM reminders WHERE user_id = ? AND guild_id = ? AND id = ?",
-            (ctx.author.id, ctx.guild.id, reminder_id),
-        ):
-            pass
+        result = await self.db.reminders.delete_one(
+            {
+                "reminder_id": reminder_id,
+                "user_id": ctx.author.id,
+                "guild_id": ctx.guild.id,
+            }
+        )
+
+        if result.deleted_count == 0:
+            return await ctx.respond(
+                "Reminder not found or you do not have permission to delete it.",
+                ephemeral=True,
+            )
 
         await ctx.respond(
             "Reminder deleted.",
@@ -664,14 +463,18 @@ class Information(commands.Cog):
         description="Clear all of your reminders.",
     )
     async def reminders_clear(self, ctx: discord.ApplicationContext):
-        async with self.conn.execute(
-            "DELETE FROM reminders WHERE user_id = ? AND guild_id = ?",
-            (ctx.author.id, ctx.guild.id),
-        ):
-            pass
+        result = await self.db.reminders.delete_many(
+            {"user_id": ctx.author.id, "guild_id": ctx.guild.id}
+        )
+
+        if result.deleted_count == 0:
+            return await ctx.respond(
+                "You don't have any reminders.",
+                ephemeral=True,
+            )
 
         await ctx.respond(
-            "Reminders cleared.",
+            "All reminders deleted.",
             ephemeral=True,
         )
 
@@ -689,124 +492,39 @@ class Information(commands.Cog):
     ):
         member = member or ctx.author
 
-        embed = discord.Embed(color=config["COLORS"]["SUCCESS"])
+        embed = discord.Embed(color=self.config["colors"]["success"])
         embed.set_image(url=member.avatar.url)
-        embed.add_field(
-            name="Download this image",
-            value=f"[Click Here]({member.avatar.url})",
-        )
         await ctx.respond(embed=embed)
 
     @discord.slash_command(
         name="about", description="Get some useful (or not) information about the bot."
     )
     async def about(self, ctx: discord.ApplicationContext):
-        commit_info = await fetch_latest_commit_info()
-        uptime = datetime.datetime.now() - self.bot_started
-        bot_avatar_url = self.bot.user.avatar.url if self.bot.user.avatar else None
-
-        async with self.conn.cursor() as cur:
-            await cur.execute("SELECT COUNT(*) FROM command_usage")
-            total_commands_used = (await cur.fetchone())[0]
+        commit_info = await self.github_api.get_latest_commit_info(self.config["repo"])
+        latest_commit = commit_info[0]
+        uptime = datetime.datetime.now() - self.start_time
 
         embed = (
             discord.Embed(
                 description="Uni is a multipurpose Discord bot.",
-                color=config["COLORS"]["INVISIBLE"],
+                color=self.config["colors"]["default"],
             )
             .add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms")
             .add_field(
                 name="Version",
-                value=f"[{commit_info['id'][:7]}]({commit_info['url']}) - {iso_to_discord_timestamp(commit_info['date'])}",
+                value=f"[{latest_commit['sha'][:7]}]({latest_commit['url']}) - {iso_to_discord(latest_commit['commit']['author']['date'])}",
             )
             .add_field(name="Uptime", value=str(uptime).split(".")[0])
-            .add_field(name="Commands Used", value=total_commands_used)
             .add_field(name="Python", value=f"{platform.python_version()}")
             .add_field(
                 name="Memory Usage",
                 value=f"{round(psutil.Process().memory_info().rss / 1024 ** 2)} / {round(psutil.virtual_memory().total / 1024 ** 2)} MB",
             )
-            .set_thumbnail(url=bot_avatar_url)
+            .set_thumbnail(url=self.bot.user.avatar.url)
         )
 
         await ctx.respond(embed=embed)
 
-    @discord.slash_command(
-        name="vote",
-        description="Vote for the bot on top.gg.",
-    )
-    async def vote(self, ctx: discord.ApplicationContext):
-        embed = discord.Embed(
-            title="Vote for Uni",
-            description="Uni is a multipurpose Discord bot.",
-            color=discord.Color.embed_background(),
-        )
 
-        recent_votes = await self.top_gg.get_last_1000_votes(bot_id=self.bot.user.id)
-        recent_votes = [dict(t) for t in {tuple(d.items()) for d in recent_votes}]
-        recent_votes_str = "\n".join(
-            [
-                f"{index + 1}. {vote['username']}"
-                for index, vote in enumerate(recent_votes[:10])
-            ]
-        )
-        embed.add_field(name="Recent Voters", value=f"```{recent_votes_str}```")
-
-        vote_button = discord.ui.Button(
-            style=discord.ButtonStyle.link,
-            label="Vote",
-            url=f"https://top.gg/bot/{self.bot.user.id}/vote",
-        )
-        view = discord.ui.View()
-        view.add_item(vote_button)
-
-        await ctx.respond(embed=embed, view=view)
-
-    @tasks.loop(minutes=1)
-    async def check_reminders(self):
-        async with self.conn.execute(
-            "SELECT id, user_id, guild_id, time, reminder FROM reminders"
-        ) as cursor:
-            reminders = await cursor.fetchall()
-
-        if not reminders:
-            return
-
-        for reminder in reminders:
-            reminder_timestamp = datetime.datetime.strptime(
-                reminder[3], "%Y-%m-%d %H:%M:%S"
-            )
-            if reminder_timestamp < datetime.datetime.now(datetime.timezone.utc):
-                user = await self.bot.fetch_user(reminder[1])
-                await user.send(
-                    f"Reminder for <t:{int(reminder_timestamp.timestamp())}:R>:\n{reminder[4]}"
-                )
-
-                async with self.conn.execute(
-                    "DELETE FROM reminders WHERE id = ?", (reminder[0],)
-                ):
-                    pass
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-
-        async with self.conn.execute(
-            "SELECT keyword FROM highlight_keywords WHERE guild_id = ?",
-            (message.guild.id,),
-        ) as cursor:
-            results = await cursor.fetchall()
-
-        if not results:
-            return
-
-        for keyword in results:
-            if keyword[0] in message.content:
-                await message.author.send(
-                    f"**{message.guild.name}**: {message.author.mention} said **{keyword[0]}** in {message.channel.mention}:\n\n{message.content}"
-                )
-
-
-def setup(bot_: discord.Bot):
-    bot_.add_cog(Information(bot_))
+def setup(bot: discord.Bot):
+    bot.add_cog(Information(bot))
