@@ -7,8 +7,8 @@ emojis: Dict[str, str] = {
     "pr_open": "<:pr_open:1224776505582948433>",
     "pr_merged": "<:pr_merged:1224778251461722284>",
     "pr_closed": "<:pr_closed:1224779022186319953>",
-    "issue_open": "<:issue_open:1224787851431116840>",  # TODO: find a better emoji
-    "issue_closed": "<:issue_closed:1224787850529210488>",  # TODO: find a better emoji
+    "issue_open": "<:issue_open:1224787851431116840>",
+    "issue_closed": "<:issue_closed:1224787850529210488>",
 }
 
 file_emoji_dict: Dict[str, str] = {
