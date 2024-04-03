@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands, tasks
 
 from helpers.utils import load_config
+from services.ui import UI
 
 config = load_config()
 
@@ -13,12 +14,36 @@ class Events(commands.Cog):
         self.bot = bot
         self.db = bot.db
         self.log = bot.log
+        self.ui = UI()
 
         self.check_reminders.start()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        pass  # TODO: Implement welcome messages
+        guild_doc = await self.db.guilds.find_one({"guild_id": member.guild.id})
+        if not guild_doc:
+            return
+
+        if guild_doc["welcome_enabled"] != 1:
+            return
+
+        channel = member.guild.get_channel(guild_doc["welcome_channel"])
+        if not channel:
+            return
+
+        avatar = member.avatar.url if member.avatar else member.default_avatar.url
+        member_count = member.guild.member_count
+        username = member.display_name
+
+        if len(username) > 6:
+            username = username[:6] + "..."
+
+        file = await self.ui.welcome_card(avatar, member_count, username)
+
+        await channel.send(
+            f"Welcome to {member.guild.name}, {member.mention}! We hope you enjoy your stay.",
+            file=file,
+        )
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
