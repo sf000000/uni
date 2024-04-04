@@ -39,3 +39,7 @@ nuke_image: "https://media1.tenor.com/m/2L8cGGO6_MIAAAAd/operation-teapot-nuke.g
 
 constants:
   reminder_check_interval: 10 # in seconds
+
+# https://www.themoviedb.org/settings/api
+tmdb:
+  api_key: ""
