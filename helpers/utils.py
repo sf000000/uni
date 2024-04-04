@@ -173,3 +173,9 @@ def format_time(time: int) -> str:
 
 def truncate_text(text: str, max_length: int) -> str:
     return text if len(text) <= max_length else f"{text[:max_length - 3]}..."
+
+
+def format_air_date(air_date: str) -> str:
+    air_date_obj = datetime.strptime(air_date, "%Y-%m-%d")
+    timestamp = int(air_date_obj.timestamp())
+    return f"<t:{timestamp}:R>"
