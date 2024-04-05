@@ -11,3 +11,5 @@ pillow>=10.3.0,<10.4.0  # https://github.com/python-pillow/Pillow
 spotipy>=2.23.0,<2.24.0  # https://github.com/plamere/spotipy
 undefined>=0.0.8,<0.1.0  # https://github.com/Carreau/undefined
 wavelink>=3.2.0,<3.3.0
+tmdbv3api>=1.9.0,<1.10.0  # https://github.com/AnthonyBloomer/tmdbv3api
+motor>=3.4.0,<3.5.0  # https://github.com/mongodb/motor
