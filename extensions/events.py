@@ -1,11 +1,12 @@
 import datetime
+from io import BytesIO
 
 import discord
+import httpx
 from discord.ext import commands, tasks
 from tmdbv3api import TV, TMDb
 
 from helpers.utils import format_air_date, load_config
-from services.ui import UI
 
 config = load_config()
 
@@ -15,7 +16,6 @@ class Events(commands.Cog):
         self.bot = bot
         self.db = bot.db
         self.log = bot.log
-        self.ui = UI()
         self.tmdb = TMDb()
         self.tmdb.api_key = bot.config["tmdb"]["api_key"]
         self.tv = TV()
@@ -38,18 +38,31 @@ class Events(commands.Cog):
             return
 
         avatar = member.avatar.url if member.avatar else member.default_avatar.url
-        member_count = member.guild.member_count
-        username = member.display_name
 
-        if len(username) > 6:
-            username = username[:6] + "..."
+        guild_doc = await self.db.guilds.find_one({"guild_id": member.guild.id})
+        if not guild_doc:
+            return
 
-        file = await self.ui.welcome_card(avatar, member_count, username)
+        bg = guild_doc.get("welcome_background", "https://files.catbox.moe/mr6ltq.jpg")
 
-        await channel.send(
-            f"Welcome to {member.guild.name}, {member.mention}! We hope you enjoy your stay.",
-            file=file,
-        )
+        body = {
+            "backgroundImage": bg,
+            "avatarUrl": avatar,
+            "memberCount": member.guild.member_count,
+            "memberName": member.display_name,
+            "guildName": member.guild.name,
+        }
+
+        headers = {"x-api-key": self.config["api"]["api_key"]}
+
+        async with httpx.AsyncClient(headers=headers) as client:
+            response = await client.post(
+                f"{self.config['api']['base_url']}/api/welcome",
+                json=body,
+            )
+            if response.status_code == 200:
+                image = BytesIO(response.content)
+                await channel.send(file=discord.File(image, "welcome.png"))
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
