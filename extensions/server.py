@@ -58,6 +58,28 @@ class Server(commands.Cog):
         name="leave", description="Leave messages"
     )
 
+    @_welcome.command(name="bg", description="Set the welcome background image")
+    @commands.has_permissions(manage_guild=True)
+    async def _welcome_bg(
+        self,
+        ctx: discord.ApplicationContext,
+        background: discord.Option(discord.Attachment, "The background image"),
+    ):
+        if not background.content_type.startswith("image"):
+            return await ctx.respond(
+                embed=self.embed.error("Only images are allowed."), ephemeral=True
+            )
+
+        await self.db.guilds.update_one(
+            {"guild_id": ctx.guild.id}, {"$set": {"welcome_background": background.url}}
+        )
+        embed = discord.Embed(
+            description=f"Background image updated. [Preview]({background.url})",
+            color=discord.Color.green(),
+        )
+        embed.set_image(url=background.url)
+        await ctx.respond(embed=embed)
+
     @_leave.command(name="enable", description="Enable leave messages")
     @commands.has_permissions(manage_guild=True)
     async def _leave_enable(self, ctx: discord.ApplicationContext):
