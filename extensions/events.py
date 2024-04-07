@@ -1,12 +1,11 @@
 import datetime
-from io import BytesIO
 
 import discord
-import httpx
 from discord.ext import commands, tasks
 from tmdbv3api import TV, TMDb
 
 from helpers.utils import format_air_date, load_config
+from services.ui import UI
 
 config = load_config()
 
@@ -17,9 +16,10 @@ class Events(commands.Cog):
         self.db = bot.db
         self.log = bot.log
         self.tmdb = TMDb()
+        self.ui = UI()
         self.tmdb.api_key = bot.config["tmdb"]["api_key"]
         self.tv = TV()
-
+        self.config = bot.config
         self.check_reminders.start()
         self.show_alerts.start()
 
@@ -38,31 +38,28 @@ class Events(commands.Cog):
             return
 
         avatar = member.avatar.url if member.avatar else member.default_avatar.url
+        user = await self.bot.fetch_user(member.id)
 
-        guild_doc = await self.db.guilds.find_one({"guild_id": member.guild.id})
-        if not guild_doc:
-            return
+        accent_color = str(user.accent_colour) if user.accent_colour else "#7289da"
+        avatar_decoration = (
+            member.avatar_decoration.url if member.avatar_decoration else None
+        )
+        member_count = str(len(member.guild.members))
+        username = member.display_name
+        created_at = member.created_at
 
-        bg = guild_doc.get("welcome_background", "https://files.catbox.moe/mr6ltq.jpg")
-
-        body = {
-            "backgroundImage": bg,
-            "avatarUrl": avatar,
-            "memberCount": member.guild.member_count,
-            "memberName": member.display_name,
-            "guildName": member.guild.name,
-        }
-
-        headers = {"x-api-key": self.config["api"]["api_key"]}
-
-        async with httpx.AsyncClient(headers=headers) as client:
-            response = await client.post(
-                f"{self.config['api']['base_url']}/api/welcome",
-                json=body,
+        try:
+            file = await self.ui.welcome_card(
+                avatar,
+                member_count,
+                username,
+                created_at,
+                accent_color,
+                avatar_decoration,
             )
-            if response.status_code == 200:
-                image = BytesIO(response.content)
-                await channel.send(file=discord.File(image, "welcome.png"))
+            await channel.send(file=file)
+        except Exception as e:
+            self.log.error(f"Failed to generate welcome card: {e}")
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
