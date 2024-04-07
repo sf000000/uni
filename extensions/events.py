@@ -57,7 +57,7 @@ class Events(commands.Cog):
                 accent_color,
                 avatar_decoration,
             )
-            await channel.send(file=file)
+            await channel.send(file=file, content=f"Welcome {member.mention}!")
         except Exception as e:
             self.log.error(f"Failed to generate welcome card: {e}")
 
